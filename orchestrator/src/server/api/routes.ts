@@ -243,12 +243,37 @@ apiRouter.get('/settings', async (_req: Request, res: Response) => {
     const overrideUkvisajobsMaxJobs = overrideUkvisajobsMaxJobsRaw ? parseInt(overrideUkvisajobsMaxJobsRaw, 10) : null;
     const ukvisajobsMaxJobs = overrideUkvisajobsMaxJobs ?? defaultUkvisajobsMaxJobs;
 
-    // Search terms - stored as JSON array, default from env var (pipe-separated)
     const overrideSearchTermsRaw = await settingsRepo.getSetting('searchTerms');
     const defaultSearchTermsEnv = process.env.JOBSPY_SEARCH_TERMS || 'web developer';
     const defaultSearchTerms = defaultSearchTermsEnv.split('|').map(s => s.trim()).filter(Boolean);
     const overrideSearchTerms = overrideSearchTermsRaw ? JSON.parse(overrideSearchTermsRaw) as string[] : null;
     const searchTerms = overrideSearchTerms ?? defaultSearchTerms;
+
+    // JobSpy settings
+    const overrideJobspyLocation = await settingsRepo.getSetting('jobspyLocation');
+    const defaultJobspyLocation = process.env.JOBSPY_LOCATION || 'UK';
+    const jobspyLocation = overrideJobspyLocation || defaultJobspyLocation;
+
+    const overrideJobspyResultsWantedRaw = await settingsRepo.getSetting('jobspyResultsWanted');
+    const defaultJobspyResultsWanted = parseInt(process.env.JOBSPY_RESULTS_WANTED || '200', 10);
+    const overrideJobspyResultsWanted = overrideJobspyResultsWantedRaw ? parseInt(overrideJobspyResultsWantedRaw, 10) : null;
+    const jobspyResultsWanted = overrideJobspyResultsWanted ?? defaultJobspyResultsWanted;
+
+    const overrideJobspyHoursOldRaw = await settingsRepo.getSetting('jobspyHoursOld');
+    const defaultJobspyHoursOld = parseInt(process.env.JOBSPY_HOURS_OLD || '72', 10);
+    const overrideJobspyHoursOld = overrideJobspyHoursOldRaw ? parseInt(overrideJobspyHoursOldRaw, 10) : null;
+    const jobspyHoursOld = overrideJobspyHoursOld ?? defaultJobspyHoursOld;
+
+    const overrideJobspyCountryIndeed = await settingsRepo.getSetting('jobspyCountryIndeed');
+    const defaultJobspyCountryIndeed = process.env.JOBSPY_COUNTRY_INDEED || 'UK';
+    const jobspyCountryIndeed = overrideJobspyCountryIndeed || defaultJobspyCountryIndeed;
+
+    const overrideJobspyLinkedinFetchDescriptionRaw = await settingsRepo.getSetting('jobspyLinkedinFetchDescription');
+    const defaultJobspyLinkedinFetchDescription = (process.env.JOBSPY_LINKEDIN_FETCH_DESCRIPTION || '1') === '1';
+    const overrideJobspyLinkedinFetchDescription = overrideJobspyLinkedinFetchDescriptionRaw
+      ? overrideJobspyLinkedinFetchDescriptionRaw === 'true' || overrideJobspyLinkedinFetchDescriptionRaw === '1'
+      : null;
+    const jobspyLinkedinFetchDescription = overrideJobspyLinkedinFetchDescription ?? defaultJobspyLinkedinFetchDescription;
 
     res.json({
       success: true,
@@ -269,6 +294,21 @@ apiRouter.get('/settings', async (_req: Request, res: Response) => {
         searchTerms,
         defaultSearchTerms,
         overrideSearchTerms,
+        jobspyLocation,
+        defaultJobspyLocation,
+        overrideJobspyLocation,
+        jobspyResultsWanted,
+        defaultJobspyResultsWanted,
+        overrideJobspyResultsWanted,
+        jobspyHoursOld,
+        defaultJobspyHoursOld,
+        overrideJobspyHoursOld,
+        jobspyCountryIndeed,
+        defaultJobspyCountryIndeed,
+        overrideJobspyCountryIndeed,
+        jobspyLinkedinFetchDescription,
+        defaultJobspyLinkedinFetchDescription,
+        overrideJobspyLinkedinFetchDescription,
       },
     });
   } catch (error) {
@@ -288,6 +328,11 @@ const updateSettingsSchema = z.object({
   }).nullable().optional(),
   ukvisajobsMaxJobs: z.number().int().min(1).max(200).nullable().optional(),
   searchTerms: z.array(z.string().trim().min(1).max(200)).max(50).nullable().optional(),
+  jobspyLocation: z.string().trim().min(1).max(100).nullable().optional(),
+  jobspyResultsWanted: z.number().int().min(1).max(500).nullable().optional(),
+  jobspyHoursOld: z.number().int().min(1).max(168).nullable().optional(),
+  jobspyCountryIndeed: z.string().trim().min(1).max(100).nullable().optional(),
+  jobspyLinkedinFetchDescription: z.boolean().nullable().optional(),
 });
 
 /**
@@ -336,6 +381,31 @@ apiRouter.patch('/settings', async (req: Request, res: Response) => {
       await settingsRepo.setSetting('searchTerms', searchTerms !== null ? JSON.stringify(searchTerms) : null);
     }
 
+    if ('jobspyLocation' in input) {
+      const value = input.jobspyLocation ?? null;
+      await settingsRepo.setSetting('jobspyLocation', value);
+    }
+
+    if ('jobspyResultsWanted' in input) {
+      const value = input.jobspyResultsWanted ?? null;
+      await settingsRepo.setSetting('jobspyResultsWanted', value !== null ? String(value) : null);
+    }
+
+    if ('jobspyHoursOld' in input) {
+      const value = input.jobspyHoursOld ?? null;
+      await settingsRepo.setSetting('jobspyHoursOld', value !== null ? String(value) : null);
+    }
+
+    if ('jobspyCountryIndeed' in input) {
+      const value = input.jobspyCountryIndeed ?? null;
+      await settingsRepo.setSetting('jobspyCountryIndeed', value);
+    }
+
+    if ('jobspyLinkedinFetchDescription' in input) {
+      const value = input.jobspyLinkedinFetchDescription ?? null;
+      await settingsRepo.setSetting('jobspyLinkedinFetchDescription', value !== null ? (value ? '1' : '0') : null);
+    }
+
     const overrideModel = await settingsRepo.getSetting('model');
     const defaultModel = process.env.MODEL || 'openai/gpt-4o-mini';
     const model = overrideModel || defaultModel;
@@ -365,6 +435,32 @@ apiRouter.patch('/settings', async (req: Request, res: Response) => {
     const overrideSearchTerms = overrideSearchTermsRaw ? JSON.parse(overrideSearchTermsRaw) as string[] : null;
     const searchTerms = overrideSearchTerms ?? defaultSearchTerms;
 
+    // JobSpy settings (re-fetch to update response)
+    const overrideJobspyLocation = await settingsRepo.getSetting('jobspyLocation');
+    const defaultJobspyLocation = process.env.JOBSPY_LOCATION || 'UK';
+    const jobspyLocation = overrideJobspyLocation || defaultJobspyLocation;
+
+    const overrideJobspyResultsWantedRaw = await settingsRepo.getSetting('jobspyResultsWanted');
+    const defaultJobspyResultsWanted = parseInt(process.env.JOBSPY_RESULTS_WANTED || '200', 10);
+    const overrideJobspyResultsWanted = overrideJobspyResultsWantedRaw ? parseInt(overrideJobspyResultsWantedRaw, 10) : null;
+    const jobspyResultsWanted = overrideJobspyResultsWanted ?? defaultJobspyResultsWanted;
+
+    const overrideJobspyHoursOldRaw = await settingsRepo.getSetting('jobspyHoursOld');
+    const defaultJobspyHoursOld = parseInt(process.env.JOBSPY_HOURS_OLD || '72', 10);
+    const overrideJobspyHoursOld = overrideJobspyHoursOldRaw ? parseInt(overrideJobspyHoursOldRaw, 10) : null;
+    const jobspyHoursOld = overrideJobspyHoursOld ?? defaultJobspyHoursOld;
+
+    const overrideJobspyCountryIndeed = await settingsRepo.getSetting('jobspyCountryIndeed');
+    const defaultJobspyCountryIndeed = process.env.JOBSPY_COUNTRY_INDEED || 'UK';
+    const jobspyCountryIndeed = overrideJobspyCountryIndeed || defaultJobspyCountryIndeed;
+
+    const overrideJobspyLinkedinFetchDescriptionRaw = await settingsRepo.getSetting('jobspyLinkedinFetchDescription');
+    const defaultJobspyLinkedinFetchDescription = (process.env.JOBSPY_LINKEDIN_FETCH_DESCRIPTION || '1') === '1';
+    const overrideJobspyLinkedinFetchDescription = overrideJobspyLinkedinFetchDescriptionRaw
+      ? overrideJobspyLinkedinFetchDescriptionRaw === 'true' || overrideJobspyLinkedinFetchDescriptionRaw === '1'
+      : null;
+    const jobspyLinkedinFetchDescription = overrideJobspyLinkedinFetchDescription ?? defaultJobspyLinkedinFetchDescription;
+
     res.json({
       success: true,
       data: {
@@ -384,6 +480,21 @@ apiRouter.patch('/settings', async (req: Request, res: Response) => {
         searchTerms,
         defaultSearchTerms,
         overrideSearchTerms,
+        jobspyLocation,
+        defaultJobspyLocation,
+        overrideJobspyLocation,
+        jobspyResultsWanted,
+        defaultJobspyResultsWanted,
+        overrideJobspyResultsWanted,
+        jobspyHoursOld,
+        defaultJobspyHoursOld,
+        overrideJobspyHoursOld,
+        jobspyCountryIndeed,
+        defaultJobspyCountryIndeed,
+        overrideJobspyCountryIndeed,
+        jobspyLinkedinFetchDescription,
+        defaultJobspyLinkedinFetchDescription,
+        overrideJobspyLinkedinFetchDescription,
       },
     });
   } catch (error) {

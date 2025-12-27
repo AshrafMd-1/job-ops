@@ -207,4 +207,19 @@ export interface AppSettings {
   searchTerms: string[];
   defaultSearchTerms: string[];
   overrideSearchTerms: string[] | null;
+  jobspyLocation: string;
+  defaultJobspyLocation: string;
+  overrideJobspyLocation: string | null;
+  jobspyResultsWanted: number;
+  defaultJobspyResultsWanted: number;
+  overrideJobspyResultsWanted: number | null;
+  jobspyHoursOld: number;
+  defaultJobspyHoursOld: number;
+  overrideJobspyHoursOld: number | null;
+  jobspyCountryIndeed: string;
+  defaultJobspyCountryIndeed: string;
+  overrideJobspyCountryIndeed: string | null;
+  jobspyLinkedinFetchDescription: boolean;
+  defaultJobspyLinkedinFetchDescription: boolean;
+  overrideJobspyLinkedinFetchDescription: boolean | null;
 }

@@ -107,6 +107,11 @@ export async function updateSettings(update: {
   resumeProjects?: ResumeProjectsSettings | null
   ukvisajobsMaxJobs?: number | null
   searchTerms?: string[] | null
+  jobspyLocation?: string | null
+  jobspyResultsWanted?: number | null
+  jobspyHoursOld?: number | null
+  jobspyCountryIndeed?: string | null
+  jobspyLinkedinFetchDescription?: boolean | null
 }): Promise<AppSettings> {
   return fetchApi<AppSettings>('/settings', {
     method: 'PATCH',

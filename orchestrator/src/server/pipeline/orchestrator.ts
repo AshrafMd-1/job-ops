@@ -134,9 +134,20 @@ export async function runPipeline(config: Partial<PipelineConfig> = {}): Promise
         detail: `JobSpy: scraping ${jobSpySites.join(', ')}...`,
       });
 
+      const jobspyLocationSetting = await settingsRepo.getSetting('jobspyLocation');
+      const jobspyResultsWantedSetting = await settingsRepo.getSetting('jobspyResultsWanted');
+      const jobspyHoursOldSetting = await settingsRepo.getSetting('jobspyHoursOld');
+      const jobspyCountryIndeedSetting = await settingsRepo.getSetting('jobspyCountryIndeed');
+      const jobspyLinkedinFetchDescriptionSetting = await settingsRepo.getSetting('jobspyLinkedinFetchDescription');
+
       const jobSpyResult = await runJobSpy({
         sites: jobSpySites,
         searchTerms,
+        location: jobspyLocationSetting ?? undefined,
+        resultsWanted: jobspyResultsWantedSetting ? parseInt(jobspyResultsWantedSetting, 10) : undefined,
+        hoursOld: jobspyHoursOldSetting ? parseInt(jobspyHoursOldSetting, 10) : undefined,
+        countryIndeed: jobspyCountryIndeedSetting ?? undefined,
+        linkedinFetchDescription: jobspyLinkedinFetchDescriptionSetting !== null ? jobspyLinkedinFetchDescriptionSetting === '1' : undefined,
       });
       if (!jobSpyResult.success) {
         sourceErrors.push(`jobspy: ${jobSpyResult.error ?? 'unknown error'}`);
