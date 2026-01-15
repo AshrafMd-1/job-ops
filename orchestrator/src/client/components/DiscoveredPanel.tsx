@@ -247,6 +247,7 @@ const TailorMode: React.FC<TailorModeProps> = ({
 }) => {
   const [catalog, setCatalog] = useState<ResumeProjectCatalogItem[]>([]);
   const [summary, setSummary] = useState(job.tailoredSummary || "");
+  const [jobDescription, setJobDescription] = useState(job.jobDescription || "");
   const [selectedIds, setSelectedIds] = useState<Set<string>>(() => {
     const saved = job.selectedProjectIds?.split(",").filter(Boolean) ?? [];
     return new Set(saved);
@@ -265,13 +266,15 @@ const TailorMode: React.FC<TailorModeProps> = ({
   // Reset form when job changes
   useEffect(() => {
     setSummary(job.tailoredSummary || "");
+    setJobDescription(job.jobDescription || "");
     const saved = job.selectedProjectIds?.split(",").filter(Boolean) ?? [];
     setSelectedIds(new Set(saved));
     setDraftStatus("saved");
-  }, [job.id, job.tailoredSummary, job.selectedProjectIds]);
+  }, [job.id, job.tailoredSummary, job.selectedProjectIds, job.jobDescription]);
 
   // Track unsaved changes
   const savedSummary = job.tailoredSummary || "";
+  const savedDescription = job.jobDescription || "";
   const savedIds = useMemo(() => {
     const saved = job.selectedProjectIds?.split(",").filter(Boolean) ?? [];
     return new Set(saved);
@@ -279,12 +282,13 @@ const TailorMode: React.FC<TailorModeProps> = ({
 
   const hasChanges = useMemo(() => {
     if (summary !== savedSummary) return true;
+    if (jobDescription !== savedDescription) return true;
     if (selectedIds.size !== savedIds.size) return true;
     for (const id of selectedIds) {
       if (!savedIds.has(id)) return true;
     }
     return false;
-  }, [summary, savedSummary, selectedIds, savedIds]);
+  }, [summary, savedSummary, jobDescription, savedDescription, selectedIds, savedIds]);
 
   // Update draft status when changes are made
   useEffect(() => {
@@ -302,6 +306,7 @@ const TailorMode: React.FC<TailorModeProps> = ({
         setDraftStatus("saving");
         await api.updateJob(job.id, {
           tailoredSummary: summary,
+          jobDescription: jobDescription,
           selectedProjectIds: Array.from(selectedIds).join(","),
         });
         setDraftStatus("saved");
@@ -311,7 +316,7 @@ const TailorMode: React.FC<TailorModeProps> = ({
     }, 1500);
 
     return () => clearTimeout(timeout);
-  }, [summary, selectedIds, hasChanges, draftStatus, job.id]);
+  }, [summary, jobDescription, selectedIds, hasChanges, draftStatus, job.id]);
 
   const handleToggleProject = (id: string) => {
     const next = new Set(selectedIds);
@@ -323,8 +328,19 @@ const TailorMode: React.FC<TailorModeProps> = ({
   const handleGenerateWithAI = async () => {
     try {
       setIsGenerating(true);
+
+      // Save any pending changes first so AI uses the latest description
+      if (hasChanges) {
+        await api.updateJob(job.id, {
+          tailoredSummary: summary,
+          jobDescription: jobDescription,
+          selectedProjectIds: Array.from(selectedIds).join(","),
+        });
+      }
+
       const updatedJob = await api.summarizeJob(job.id, { force: true });
       setSummary(updatedJob.tailoredSummary || "");
+      setJobDescription(updatedJob.jobDescription || "");
       if (updatedJob.selectedProjectIds) {
         setSelectedIds(
           new Set(updatedJob.selectedProjectIds.split(",").filter(Boolean))
@@ -348,6 +364,7 @@ const TailorMode: React.FC<TailorModeProps> = ({
         setIsSaving(true);
         await api.updateJob(job.id, {
           tailoredSummary: summary,
+          jobDescription: jobDescription,
           selectedProjectIds: Array.from(selectedIds).join(","),
         });
       } catch {
@@ -439,6 +456,20 @@ const TailorMode: React.FC<TailorModeProps> = ({
             )}
             Generate draft
           </Button>
+        </div>
+
+        {/* Job Description */}
+        <div className='space-y-2'>
+          <label className='text-xs font-medium text-muted-foreground'>
+            Job Description (Edit to help AI tailoring)
+          </label>
+          <textarea
+            className='w-full min-h-[120px] max-h-[250px] rounded-lg border border-border/60 bg-background/50 px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground/50 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50'
+            value={jobDescription}
+            onChange={(e) => setJobDescription(e.target.value)}
+            placeholder='The raw job description...'
+            disabled={isGenerating || isFinalizing}
+          />
         </div>
 
         {/* Tailored Summary */}

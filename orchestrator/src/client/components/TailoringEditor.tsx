@@ -26,6 +26,7 @@ export const TailoringEditor: React.FC<TailoringEditorProps> = ({
 }) => {
   const [catalog, setCatalog] = useState<ResumeProjectCatalogItem[]>([]);
   const [summary, setSummary] = useState(job.tailoredSummary || "");
+  const [jobDescription, setJobDescription] = useState(job.jobDescription || "");
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [isSummarizing, setIsSummarizing] = useState(false);
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
@@ -44,7 +45,9 @@ export const TailoringEditor: React.FC<TailoringEditorProps> = ({
     return false;
   }, [selectedIds, savedSelectedIds]);
 
-  const isDirty = summary !== (job.tailoredSummary || "") || hasSelectionDiff;
+  const isDirty = summary !== (job.tailoredSummary || "") || 
+                  jobDescription !== (job.jobDescription || "") ||
+                  hasSelectionDiff;
 
   useEffect(() => {
     onDirtyChange?.(isDirty);
@@ -58,7 +61,8 @@ export const TailoringEditor: React.FC<TailoringEditorProps> = ({
     if (job.selectedProjectIds) {
       setSelectedIds(new Set(job.selectedProjectIds.split(',').filter(Boolean)));
     }
-  }, [job.selectedProjectIds]);
+    setJobDescription(job.jobDescription || "");
+  }, [job.selectedProjectIds, job.jobDescription]);
 
   useEffect(() => {
     setSummary(job.tailoredSummary || "");
@@ -70,6 +74,7 @@ export const TailoringEditor: React.FC<TailoringEditorProps> = ({
         setIsSaving(true);
         await api.updateJob(job.id, {
           tailoredSummary: summary,
+          jobDescription: jobDescription,
           selectedProjectIds: Array.from(selectedIds).join(","),
         });
         if (showToast) toast.success("Changes saved");
@@ -81,7 +86,7 @@ export const TailoringEditor: React.FC<TailoringEditorProps> = ({
         setIsSaving(false);
       }
     },
-    [job.id, onUpdate, selectedIds, summary],
+    [job.id, onUpdate, selectedIds, summary, jobDescription],
   );
 
   useEffect(() => {
@@ -106,8 +111,13 @@ export const TailoringEditor: React.FC<TailoringEditorProps> = ({
   const handleSummarize = async () => {
     try {
       setIsSummarizing(true);
+      // Save changes first so AI uses latest description
+      if (isDirty) {
+        await saveChanges({ showToast: false });
+      }
       const updatedJob = await api.summarizeJob(job.id, { force: true });
       setSummary(updatedJob.tailoredSummary || "");
+      setJobDescription(updatedJob.jobDescription || "");
       if (updatedJob.selectedProjectIds) {
         setSelectedIds(new Set(updatedJob.selectedProjectIds.split(',').filter(Boolean)));
       }
@@ -168,6 +178,18 @@ export const TailoringEditor: React.FC<TailoringEditorProps> = ({
       </div>
       
       <div className="space-y-4 rounded-lg border bg-card p-4 shadow-sm">
+        <div className="space-y-2">
+          <label className="text-sm font-medium">Job Description (Edit to help AI tailoring)</label>
+          <textarea
+            className="w-full min-h-[120px] max-h-[250px] rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+            value={jobDescription}
+            onChange={(e) => setJobDescription(e.target.value)}
+            placeholder="The raw job description..."
+          />
+        </div>
+
+        <Separator />
+
         <div className="space-y-2">
           <label className="text-sm font-medium">Tailored Summary</label>
           <textarea
