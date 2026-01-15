@@ -716,13 +716,13 @@ export const OrchestratorPage: React.FC = () => {
             <span className="text-border">•</span>
             <span><span className="tabular-nums">{stats.ready}</span> ready</span>
             <span className="text-border">•</span>
-            <span><span className="tabular-nums">{stats.discovered + stats.processing}</span> pending</span>
+            <span><span className="tabular-nums">{stats.discovered + stats.processing}</span> discovered</span>
             <span className="text-border">•</span>
             <span><span className="tabular-nums">{stats.applied}</span> applied</span>
             {(stats.skipped > 0 || stats.expired > 0) && (
               <>
                 <span className="text-border">•</span>
-                <span className="text-muted-foreground/60"><span className="tabular-nums">{stats.skipped + stats.expired}</span> archived</span>
+                <span className="text-muted-foreground/60"><span className="tabular-nums">{stats.skipped + stats.expired}</span> skipped</span>
               </>
             )}
           </div>
