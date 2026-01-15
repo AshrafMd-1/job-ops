@@ -30,8 +30,21 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Input } from "@/components/ui/input"
 import { Separator } from "@/components/ui/separator"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import type { AppSettings, ResumeProjectsSettings } from "../../shared/types"
+import type { AppSettings, JobStatus, ResumeProjectsSettings } from "../../shared/types"
 import * as api from "../api"
+
+/** All available job statuses for clearing */
+const ALL_JOB_STATUSES: JobStatus[] = ['discovered', 'processing', 'ready', 'applied', 'skipped', 'expired']
+
+/** Status descriptions for UI */
+const STATUS_DESCRIPTIONS: Record<JobStatus, string> = {
+  discovered: 'Crawled but not processed',
+  processing: 'Currently generating resume',
+  ready: 'PDF generated, waiting for user to apply',
+  applied: 'User marked as applied',
+  skipped: 'User skipped this job',
+  expired: 'Deadline passed',
+}
 
 function arraysEqual(a: string[], b: string[]) {
   if (a.length !== b.length) return false
@@ -74,6 +87,7 @@ export const SettingsPage: React.FC = () => {
   const [jobspyLinkedinFetchDescriptionDraft, setJobspyLinkedinFetchDescriptionDraft] = useState<boolean | null>(null)
   const [isSaving, setIsSaving] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
+  const [statusesToClear, setStatusesToClear] = useState<JobStatus[]>(['discovered'])
 
   useEffect(() => {
     let isMounted = true
@@ -297,17 +311,47 @@ export const SettingsPage: React.FC = () => {
     }
   }
 
-  const handleClearDiscovered = async () => {
+  const handleClearByStatuses = async () => {
+    if (statusesToClear.length === 0) {
+      toast.error("No statuses selected")
+      return
+    }
     try {
       setIsSaving(true)
-      const result = await api.deleteJobsByStatus("discovered")
-      toast.success("Discovered jobs cleared", { description: `Deleted ${result.count} jobs.` })
+      let totalDeleted = 0
+      const results: string[] = []
+      
+      for (const status of statusesToClear) {
+        const result = await api.deleteJobsByStatus(status)
+        totalDeleted += result.count
+        if (result.count > 0) {
+          results.push(`${result.count} ${status}`)
+        }
+      }
+      
+      if (totalDeleted > 0) {
+        toast.success("Jobs cleared", { 
+          description: `Deleted ${totalDeleted} jobs: ${results.join(', ')}` 
+        })
+      } else {
+        toast.info("No jobs found", { 
+          description: `No jobs with selected statuses found` 
+        })
+      }
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Failed to clear discovered jobs"
+      const message = error instanceof Error ? error.message : "Failed to clear jobs"
       toast.error(message)
     } finally {
       setIsSaving(false)
     }
+  }
+
+  const toggleStatusToClear = (status: JobStatus) => {
+    setStatusesToClear(prev => 
+      prev.includes(status) 
+        ? prev.filter(s => s !== status)
+        : [...prev, status]
+    )
   }
   const handleReset = async () => {
     try {
@@ -900,49 +944,86 @@ export const SettingsPage: React.FC = () => {
           </AccordionContent>
         </AccordionItem>
 
-        <AccordionItem value="danger-zone" className="border rounded-lg px-4 border-red-500/30 bg-red-500/5 mt-4">
+        <AccordionItem value="danger-zone" className="border rounded-lg px-4 border-destructive/30 mt-4">
           <AccordionTrigger className="hover:no-underline py-4">
-            <div className="flex items-center gap-2 text-red-500">
+            <div className="flex items-center gap-2 text-destructive">
               <AlertTriangle className="h-4 w-4" />
               <span className="text-base font-semibold tracking-wider">Danger Zone</span>
             </div>
           </AccordionTrigger>
           <AccordionContent className="pb-4">
             <div className="space-y-4 pt-2">
-              <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between p-3 rounded-md">
+              <div className="p-3 rounded-md space-y-4">
                 <div className="space-y-0.5">
-                  <div className="text-sm font-semibold text-red-500">Clear Discovered Jobs</div>
+                  <div className="text-sm font-semibold text-destructive">Clear Jobs by Status</div>
                   <div className="text-xs text-muted-foreground">
-                    Delete all jobs with the status "discovered". Ready, applied, and skipped jobs are kept.
+                    Select which job statuses you want to clear.
                   </div>
                 </div>
+                
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                  {ALL_JOB_STATUSES.map((status) => {
+                    const isSelected = statusesToClear.includes(status)
+                    return (
+                      <button
+                        key={status}
+                        type="button"
+                        onClick={() => toggleStatusToClear(status)}
+                        disabled={isLoading || isSaving}
+                        className={`flex items-start gap-3 rounded-lg border p-3 text-left transition-colors hover:bg-destructive/20 disabled:cursor-not-allowed disabled:opacity-50 ${
+                          isSelected ? 'border-destructive bg-destructive/10' : 'border-border'
+                        }`}
+                      >
+                        <div className={`mt-0.5 h-4 w-4 rounded-full border-2 flex items-center justify-center ${
+                          isSelected ? 'border-destructive' : 'border-muted-foreground'
+                        }`}>
+                          {isSelected && <div className="h-2 w-2 rounded-full bg-destructive" />}
+                        </div>
+                        <div className="grid gap-0.5">
+                          <span className="text-sm font-medium capitalize">{status}</span>
+                          <span className="text-xs text-muted-foreground">
+                            {STATUS_DESCRIPTIONS[status]}
+                          </span>
+                        </div>
+                      </button>
+                    )
+                  })}
+                </div>
+
                 <AlertDialog>
                   <AlertDialogTrigger asChild>
-                    <Button variant="destructive" size="sm" disabled={isLoading || isSaving}>
+                    <Button 
+                      variant="destructive" 
+                      size="sm" 
+                      disabled={isLoading || isSaving || statusesToClear.length === 0}
+                    >
                       <Trash2 className="mr-2 h-4 w-4" />
-                      Clear Discovered
+                      Clear Selected ({statusesToClear.length})
                     </Button>
                   </AlertDialogTrigger>
                   <AlertDialogContent>
                     <AlertDialogHeader>
-                      <AlertDialogTitle>Clear discovered jobs?</AlertDialogTitle>
+                      <AlertDialogTitle>Clear jobs by status?</AlertDialogTitle>
                       <AlertDialogDescription>
-                        This deletes all jobs with the status "discovered". This action cannot be undone.
+                        This will delete all jobs with the following statuses: {statusesToClear.join(', ')}.
+                        This action cannot be undone.
                       </AlertDialogDescription>
                     </AlertDialogHeader>
                     <AlertDialogFooter>
                       <AlertDialogCancel>Cancel</AlertDialogCancel>
-                      <AlertDialogAction onClick={handleClearDiscovered} className="bg-red-500 text-red-500-foreground hover:bg-red-500/90">
-                        Clear discovered
+                      <AlertDialogAction onClick={handleClearByStatuses} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+                        Clear {statusesToClear.length} status{statusesToClear.length !== 1 ? 'es' : ''}
                       </AlertDialogAction>
                     </AlertDialogFooter>
                   </AlertDialogContent>
                 </AlertDialog>
               </div>
 
+              <Separator />
+
               <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between p-3 rounded-md">
                 <div className="space-y-0.5">
-                  <div className="text-sm font-semibold text-red-500">Clear Database</div>
+                  <div className="text-sm font-semibold text-destructive">Clear Entire Database</div>
                   <div className="text-xs text-muted-foreground">
                     Delete all jobs and pipeline runs from the database.
                   </div>
@@ -963,7 +1044,7 @@ export const SettingsPage: React.FC = () => {
                     </AlertDialogHeader>
                     <AlertDialogFooter>
                       <AlertDialogCancel>Cancel</AlertDialogCancel>
-                      <AlertDialogAction onClick={handleClearDatabase} className="bg-red-500 text-red-500 hover:bg-red-500/90">
+                      <AlertDialogAction onClick={handleClearDatabase} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
                         Clear database
                       </AlertDialogAction>
                     </AlertDialogFooter>
