@@ -33,12 +33,21 @@ function buildBasicAuthMiddleware() {
     return user === BASIC_AUTH_USER && pass === BASIC_AUTH_PASSWORD;
   }
 
-  function requiresAuth(method: string): boolean {
+  function isPublicReadOnlyRoute(method: string, path: string): boolean {
+    const normalizedMethod = method.toUpperCase();
+    const normalizedPath = path.split('?')[0] || path;
+    if (normalizedMethod === 'POST' && normalizedPath === '/api/ukvisajobs/search') return true;
+    if (normalizedMethod === 'POST' && normalizedPath === '/api/visa-sponsors/search') return true;
+    return false;
+  }
+
+  function requiresAuth(method: string, path: string): boolean {
+    if (isPublicReadOnlyRoute(method, path)) return false;
     return !['GET', 'HEAD', 'OPTIONS'].includes(method.toUpperCase());
   }
 
   return (req: express.Request, res: express.Response, next: express.NextFunction) => {
-    if (!basicAuthEnabled || !requiresAuth(req.method)) return next();
+    if (!basicAuthEnabled || !requiresAuth(req.method, req.path)) return next();
     if (isAuthorized(req)) return next();
     res.setHeader('WWW-Authenticate', 'Basic realm="Job Ops"');
     res.status(401).send('Authentication required');
