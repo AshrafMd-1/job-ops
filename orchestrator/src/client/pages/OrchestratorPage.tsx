@@ -80,14 +80,18 @@ export const OrchestratorPage: React.FC = () => {
   const sort = useMemo((): JobSort => {
     const s = searchParams.get("sort");
     if (!s) return DEFAULT_SORT;
-    const [key, direction] = s.split(":");
+    const [key, direction] = s.split("-");
     return { key: key as any, direction: direction as any };
   }, [searchParams]);
 
   const setSort = (newSort: JobSort) => {
     setSearchParams(
       (prev) => {
-        prev.set("sort", `${newSort.key}:${newSort.direction}`);
+        if (newSort.key === DEFAULT_SORT.key && newSort.direction === DEFAULT_SORT.direction) {
+          prev.delete("sort");
+        } else {
+          prev.set("sort", `${newSort.key}-${newSort.direction}`);
+        }
         return prev;
       },
       { replace: true },
