@@ -20,14 +20,21 @@ export async function fetchRxResume(path: string, options: RequestInit = {}): Pr
     }
 
     const baseUrl = process.env.RXRESUME_URL || 'https://rxresu.me';
-    const cleanBaseUrl = baseUrl.endsWith('/') ? baseUrl.slice(0, -1) : baseUrl;
+    let cleanBaseUrl = baseUrl.endsWith('/') ? baseUrl.slice(0, -1) : baseUrl;
 
-    // The API endpoints are at /api/openapi/*
+    // Handle cases where the base URL already includes /api or /api/openapi
+    if (cleanBaseUrl.endsWith('/api/openapi')) {
+        cleanBaseUrl = cleanBaseUrl.slice(0, -12);
+    } else if (cleanBaseUrl.endsWith('/api')) {
+        cleanBaseUrl = cleanBaseUrl.slice(0, -4);
+    }
+
     const url = `${cleanBaseUrl}/api/openapi${path}`;
 
     const headers = {
         'x-api-key': apiKey,
-        'Content-Type': 'application/json',
+        // intentionally removed because it doesn't work with this added...
+        // 'Content-Type': 'application/json',
         ...(options.headers || {}),
     } as Record<string, string>;
 
@@ -83,9 +90,11 @@ export async function exportResumePdf(id: string): Promise<string> {
     const result = await fetchRxResume(`/printer/resume/${id}/pdf`);
     return result.url;
 }
+
 /**
  * List all resumes.
+ * According to official OpenAPI spec, the endpoint is /resume/list
  */
 export async function listResumes(): Promise<{ id: string; name: string }[]> {
-    return fetchRxResume('/resume');
+    return fetchRxResume('/resume/list');
 }

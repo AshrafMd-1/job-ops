@@ -301,7 +301,7 @@ settingsRouter.patch('/', async (req: Request, res: Response) => {
 settingsRouter.get('/rx-resumes', async (_req: Request, res: Response) => {
   try {
     const resumes = await listResumes();
-    res.json({ success: true, resumes });
+    res.json({ success: true, data: { resumes } });
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown error';
     console.error(`❌ Failed to fetch Reactive Resumes: ${message}`);
