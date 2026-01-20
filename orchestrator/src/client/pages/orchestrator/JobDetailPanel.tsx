@@ -1,14 +1,11 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  Calendar,
   CheckCircle2,
   Copy,
-  DollarSign,
   Edit2,
   ExternalLink,
   FileText,
   Loader2,
-  MapPin,
   MoreHorizontal,
   RefreshCcw,
   Save,
@@ -29,9 +26,9 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
-import { cn, copyTextToClipboard, formatDate, formatJobForWebhook, sourceLabel, safeFilenamePart, stripHtml } from "@/lib/utils";
+import { cn, copyTextToClipboard, formatJobForWebhook, safeFilenamePart, stripHtml } from "@/lib/utils";
 
-import { DiscoveredPanel } from "../../components";
+import { DiscoveredPanel, JobHeader } from "../../components";
 import { ReadyPanel } from "../../components/ReadyPanel";
 import { TailoringEditor } from "../../components/TailoringEditor";
 import * as api from "../../api";
@@ -47,40 +44,6 @@ interface JobDetailPanelProps {
   onJobUpdated: () => Promise<void>;
   onSetActiveTab: (tab: FilterTab) => void;
 }
-
-// Subdued status pill for inspector panel - not competing with list
-const StatusPill: React.FC<{ status: JobStatus }> = ({ status }) => {
-  const tokens = statusTokens[status] ?? defaultStatusToken;
-  return (
-    <span
-      className={cn(
-        "inline-flex items-center gap-1.5 text-[10px] font-medium uppercase tracking-wide text-muted-foreground/80",
-      )}
-    >
-      <span className={cn("h-1.5 w-1.5 rounded-full opacity-80", tokens.dot)} />
-      {tokens.label}
-    </span>
-  );
-};
-
-// Compact score meter for inspector panel
-const ScoreMeter: React.FC<{ score: number | null }> = ({ score }) => {
-  if (score == null) {
-    return <span className="text-[10px] text-muted-foreground/60">-</span>;
-  }
-
-  return (
-    <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground/70">
-      <div className="h-1 w-12 rounded-full bg-muted/30">
-        <div
-          className="h-1 rounded-full bg-primary/50"
-          style={{ width: `${Math.max(4, Math.min(100, score))}%` }}
-        />
-      </div>
-      <span className="tabular-nums">{score}</span>
-    </div>
-  );
-};
 
 export const JobDetailPanel: React.FC<JobDetailPanelProps> = ({
   activeTab,
@@ -258,7 +221,6 @@ export const JobDetailPanel: React.FC<JobDetailPanelProps> = ({
   const selectedPdfHref = selectedJob
     ? `/pdfs/resume_${selectedJob.id}.pdf?v=${encodeURIComponent(selectedJob.updatedAt)}`
     : "#";
-  const selectedDeadline = selectedJob ? formatDate(selectedJob.deadline) : null;
   const canApply = selectedJob?.status === "ready";
   const canProcess = selectedJob ? ["discovered", "ready"].includes(selectedJob.status) : false;
   const canSkip = selectedJob ? ["discovered", "ready"].includes(selectedJob.status) : false;
@@ -309,44 +271,7 @@ export const JobDetailPanel: React.FC<JobDetailPanelProps> = ({
 
   return (
     <div className="space-y-3">
-      {/* Detail header: lighter weight than list items */}
-      <div className="flex flex-wrap items-start justify-between gap-2">
-        <div className="min-w-0">
-          <div className="truncate text-sm font-semibold text-foreground/90">{selectedJob.title}</div>
-          <div className="text-xs text-muted-foreground">{selectedJob.employer}</div>
-        </div>
-        <Badge variant="outline" className="text-[10px] uppercase tracking-wide text-muted-foreground border-border/50">
-          {sourceLabel[selectedJob.source]}
-        </Badge>
-      </div>
-
-      {/* Tertiary metadata - subdued */}
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-muted-foreground/70">
-        {selectedJob.location && (
-          <span className="flex items-center gap-1">
-            <MapPin className="h-3 w-3" />
-            {selectedJob.location}
-          </span>
-        )}
-        {selectedDeadline && (
-          <span className="flex items-center gap-1">
-            <Calendar className="h-3 w-3" />
-            {selectedDeadline}
-          </span>
-        )}
-        {selectedJob.salary && (
-          <span className="flex items-center gap-1">
-            <DollarSign className="h-3 w-3" />
-            {selectedJob.salary}
-          </span>
-        )}
-      </div>
-
-      {/* Status and score: single line, subdued */}
-      <div className="flex items-center justify-between gap-2 py-1 border-y border-border/30">
-        <StatusPill status={selectedJob.status} />
-        <ScoreMeter score={selectedJob.suitabilityScore} />
-      </div>
+      <JobHeader job={selectedJob} />
 
       <div className="flex flex-wrap items-center gap-1.5">
         <Button asChild size="sm" variant="ghost" className="h-8 gap-1.5 text-xs">

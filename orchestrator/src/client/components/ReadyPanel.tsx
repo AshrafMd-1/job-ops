@@ -41,7 +41,7 @@ import {
 } from "@/components/ui/accordion";
 import { cn, copyTextToClipboard, formatJobForWebhook } from "@/lib/utils";
 import * as api from "../api";
-import { FitAssessment } from ".";
+import { FitAssessment, JobHeader } from ".";
 import type { Job, ResumeProjectCatalogItem } from "../../shared/types";
 
 interface ReadyPanelProps {
@@ -217,6 +217,8 @@ export const ReadyPanel: React.FC<ReadyPanelProps> = ({
 
   return (
     <div className="flex flex-col h-full">
+      <JobHeader job={job} className="pb-4 border-b border-border/40" />
+
       {/* ─────────────────────────────────────────────────────────────────────
           PRIMARY ACTION CLUSTER
           All actions in one line: View, Save, Open, and Mark Applied

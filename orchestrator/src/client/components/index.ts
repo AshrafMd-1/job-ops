@@ -2,6 +2,7 @@ export { Header } from './Header';
 export { Stats } from './Stats';
 export { StatusBadge } from './StatusBadge';
 export { ScoreIndicator } from './ScoreIndicator';
+export { JobHeader } from './JobHeader';
 export { FitAssessment } from './FitAssessment';
 export { PipelineProgress } from './PipelineProgress';
 export { TailoringEditor } from './TailoringEditor';
