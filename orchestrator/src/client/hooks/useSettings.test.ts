@@ -63,4 +63,18 @@ describe('useSettings', () => {
         expect(result.current.settings).toEqual(updatedSettings);
         expect(result.current.showSponsorInfo).toBe(false);
     });
+
+    it('handles errors when fetching settings', async () => {
+        const mockError = new Error('Failed to fetch');
+        (api.getSettings as any).mockRejectedValue(mockError);
+
+        const { result } = renderHook(() => useSettings());
+
+        await waitFor(() => {
+            expect(result.current.error).toEqual(mockError);
+        });
+
+        expect(result.current.isLoading).toBe(false);
+        expect(result.current.settings).toBeNull();
+    });
 });

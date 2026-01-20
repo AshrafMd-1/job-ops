@@ -28,7 +28,7 @@ vi.mock('../../pipeline/index.js', () => {
     getPipelineStatus: vi.fn(() => ({ isRunning: false })),
     subscribeToProgress: vi.fn((listener: (data: unknown) => void) => {
       listener(progress);
-      return () => {};
+      return () => { };
     }),
   };
 });
@@ -54,6 +54,13 @@ vi.mock('../../services/visa-sponsors/index.js', () => ({
   searchSponsors: vi.fn(),
   getOrganizationDetails: vi.fn(),
   downloadLatestCsv: vi.fn(),
+  calculateSponsorMatchSummary: vi.fn((results) => {
+    if (!results || results.length === 0) return { sponsorMatchScore: 0, sponsorMatchNames: null };
+    return {
+      sponsorMatchScore: results[0].score,
+      sponsorMatchNames: JSON.stringify(results.map((r: any) => r.sponsor.organisationName))
+    };
+  }),
 }));
 
 const originalEnv = { ...process.env };
