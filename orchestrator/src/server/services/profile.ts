@@ -3,7 +3,7 @@ import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const DEFAULT_PROFILE_PATH = join(__dirname, '../../../../resume-generator/base.json');
+const DEFAULT_PROFILE_PATH = process.env.RESUME_PROFILE_PATH || join(__dirname, '../../../../resume-generator/base.json');
 
 let cachedProfile: any = null;
 let cachedProfilePath: string | null = null;

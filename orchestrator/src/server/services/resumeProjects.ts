@@ -15,7 +15,7 @@ type ResumeProjectSelectionItem = ResumeProjectCatalogItem & { summaryText: stri
 
 export async function loadResumeProfile(profilePath: string = DEFAULT_RESUME_PROFILE_PATH): Promise<unknown> {
   if (profilePath === DEFAULT_RESUME_PROFILE_PATH) {
-    return getProfile();
+    return getProfile(profilePath);
   }
   const content = await readFile(profilePath, 'utf-8');
   return JSON.parse(content) as unknown;
