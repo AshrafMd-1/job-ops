@@ -4,6 +4,7 @@ import { toast } from "sonner"
 
 import { AlertDialog, AlertDialogContent, AlertDialogDescription, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog"
 import { Button } from "@/components/ui/button"
+import { Field, FieldContent, FieldDescription, FieldLabel, FieldTitle } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import { Progress } from "@/components/ui/progress"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -248,8 +249,6 @@ export const OnboardingGate: React.FC = () => {
       <AlertDialogContent
         className="max-w-3xl max-h-[90vh] overflow-hidden p-0"
         onEscapeKeyDown={(event) => event.preventDefault()}
-        onPointerDownOutside={(event) => event.preventDefault()}
-        onInteractOutside={(event) => event.preventDefault()}
       >
         <div className="space-y-6 px-6 py-6 max-h-[calc(90vh-3.5rem)] overflow-y-auto">
           <AlertDialogHeader>
@@ -260,40 +259,41 @@ export const OnboardingGate: React.FC = () => {
           </AlertDialogHeader>
 
           <Tabs value={currentStep} onValueChange={setCurrentStep}>
-            <TabsList className="grid h-auto w-full grid-cols-1 rounded-none border-b border-border/60 bg-transparent p-0 text-left sm:grid-cols-3">
+            <TabsList className="grid h-auto w-full grid-cols-1 gap-2 border-b border-border/60 bg-transparent p-0 text-left sm:grid-cols-3">
               {steps.map((step, index) => {
                 const isActive = step.id === currentStep
                 const isComplete = step.complete
 
                 return (
-                  <TabsTrigger
+                  <FieldLabel
                     key={step.id}
-                    value={step.id}
-                    className={cn(
-                      "flex h-auto flex-col items-start gap-2 rounded-none border-b-2 border-transparent px-2 py-4 text-xs text-muted-foreground shadow-none transition-none",
-                      isActive && "border-primary text-foreground",
-                      !isActive && "hover:text-foreground"
-                    )}
+                    className="w-full [&>[data-slot=field]]:border-0 [&>[data-slot=field]]:p-0 [&>[data-slot=field]]:rounded-none"
                   >
-                    <div className="flex items-center gap-2">
-                      <span
-                        className={cn(
-                          "flex h-6 w-6 items-center justify-center rounded-md text-xs font-semibold",
-                          isComplete
-                            ? "bg-primary text-primary-foreground"
-                            : isActive
-                              ? "bg-foreground/10 text-foreground"
+                    <TabsTrigger
+                      value={step.id}
+                      className={cn(
+                        "w-full rounded-none border-b-2 border-transparent px-3 py-4 text-left shadow-none",
+                        isActive ? "border-primary bg-muted/60 text-foreground" : "text-muted-foreground"
+                      )}
+                    >
+                      <Field orientation="horizontal" className="items-start">
+                        <FieldContent>
+                          <FieldTitle>{step.label}</FieldTitle>
+                          <FieldDescription>{step.subtitle}</FieldDescription>
+                        </FieldContent>
+                        <span
+                          className={cn(
+                            "mt-0.5 flex h-6 w-6 items-center justify-center rounded-md text-xs font-semibold",
+                            isComplete
+                              ? "bg-primary text-primary-foreground"
                               : "bg-muted text-muted-foreground"
-                        )}
-                      >
-                        {isComplete ? <Check className="h-3.5 w-3.5" /> : index + 1}
-                      </span>
-                      <span className="text-[0.7rem] font-semibold uppercase tracking-[0.2em]">
-                        {step.label}
-                      </span>
-                    </div>
-                    <span className="pl-8 text-[0.7rem] text-muted-foreground">{step.subtitle}</span>
-                  </TabsTrigger>
+                          )}
+                        >
+                          {isComplete ? <Check className="h-3.5 w-3.5" /> : index + 1}
+                        </span>
+                      </Field>
+                    </TabsTrigger>
+                  </FieldLabel>
                 )
               })}
             </TabsList>
