@@ -16,6 +16,28 @@ describe.sequential('Manual jobs API routes', () => {
     await stopServer({ server, closeDb, tempDir });
   });
 
+  describe('POST /api/manual-jobs/fetch', () => {
+    it('rejects invalid URLs', async () => {
+      const res = await fetch(`${baseUrl}/api/manual-jobs/fetch`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url: 'not-a-valid-url' }),
+      });
+
+      expect(res.status).toBe(400);
+    });
+
+    it('rejects empty payload', async () => {
+      const res = await fetch(`${baseUrl}/api/manual-jobs/fetch`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({}),
+      });
+
+      expect(res.status).toBe(400);
+    });
+  });
+
   it('infers manual jobs and rejects empty payloads', async () => {
     const badRes = await fetch(`${baseUrl}/api/manual-jobs/infer`, {
       method: 'POST',

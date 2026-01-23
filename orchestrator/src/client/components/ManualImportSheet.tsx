@@ -3,7 +3,7 @@
  */
 
 import React, { useEffect, useMemo, useState } from "react";
-import { ArrowLeft, FileText, Loader2, Sparkles } from "lucide-react";
+import { ArrowLeft, ClipboardPaste, FileText, Link, Loader2, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
@@ -112,6 +112,8 @@ export const ManualImportSheet: React.FC<ManualImportSheetProps> = ({
 }) => {
   const [step, setStep] = useState<ManualImportStep>("paste");
   const [rawDescription, setRawDescription] = useState("");
+  const [fetchUrl, setFetchUrl] = useState("");
+  const [isFetching, setIsFetching] = useState(false);
   const [draft, setDraft] = useState<ManualJobDraftState>(emptyDraft);
   const [warning, setWarning] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -121,6 +123,8 @@ export const ManualImportSheet: React.FC<ManualImportSheetProps> = ({
     if (!open) {
       setStep("paste");
       setRawDescription("");
+      setFetchUrl("");
+      setIsFetching(false);
       setDraft(emptyDraft);
       setWarning(null);
       setError(null);
@@ -132,6 +136,7 @@ export const ManualImportSheet: React.FC<ManualImportSheetProps> = ({
   const stepLabel = ["Paste JD", "Infer details", "Review & import"][stepIndex];
 
   const canAnalyze = rawDescription.trim().length > 0 && step !== "loading";
+  const canFetch = fetchUrl.trim().length > 0 && !isFetching && step === "paste";
   const canImport = useMemo(() => {
     if (step !== "review") return false;
     return (
@@ -140,6 +145,43 @@ export const ManualImportSheet: React.FC<ManualImportSheetProps> = ({
       draft.jobDescription.trim().length > 0
     );
   }, [draft, step]);
+
+  const handleFetch = async () => {
+    if (!fetchUrl.trim()) return;
+
+    try {
+      setError(null);
+      setWarning(null);
+      setIsFetching(true);
+
+      // Fetch the URL content
+      const fetchResponse = await api.fetchJobFromUrl({ url: fetchUrl.trim() });
+      const fetchedContent = fetchResponse.content;
+      const fetchedUrl = fetchResponse.url;
+
+      setIsFetching(false);
+
+      // Automatically proceed to analysis
+      setStep("loading");
+      const inferResponse = await api.inferManualJob({ jobDescription: fetchedContent });
+      // Don't pass raw HTML as job description - let user fill it in or use inferred data
+      const normalized = normalizeDraft(inferResponse.job);
+
+      // Preserve the fetched URL
+      if (!normalized.jobUrl) {
+        normalized.jobUrl = fetchedUrl;
+      }
+
+      setDraft(normalized);
+      setWarning(inferResponse.warning ?? null);
+      setStep("review");
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Failed to fetch URL";
+      setError(message);
+      setIsFetching(false);
+      setStep("paste");
+    }
+  };
 
   const handleAnalyze = async () => {
     if (!rawDescription.trim()) {
@@ -152,7 +194,12 @@ export const ManualImportSheet: React.FC<ManualImportSheetProps> = ({
       setWarning(null);
       setStep("loading");
       const response = await api.inferManualJob({ jobDescription: rawDescription });
-      setDraft(normalizeDraft(response.job, rawDescription.trim()));
+      const normalized = normalizeDraft(response.job, rawDescription.trim());
+      // Preserve the fetched URL if we fetched from a URL
+      if (draft.jobUrl && !normalized.jobUrl) {
+        normalized.jobUrl = draft.jobUrl;
+      }
+      setDraft(normalized);
       setWarning(response.warning ?? null);
       setStep("review");
     } catch (err) {
@@ -219,13 +266,60 @@ export const ManualImportSheet: React.FC<ManualImportSheetProps> = ({
               <div className="space-y-4">
                 <div className="space-y-2">
                   <label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                    Job URL (optional)
+                  </label>
+                  <div className="flex gap-2">
+                    <Input
+                      value={fetchUrl}
+                      onChange={(event) => setFetchUrl(event.target.value)}
+                      placeholder="https://example.com/job-posting"
+                      className="flex-1"
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter" && canFetch) {
+                          event.preventDefault();
+                          handleFetch();
+                        }
+                      }}
+                    />
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      disabled={isFetching}
+                      className="gap-2 shrink-0"
+                      onClick={async () => {
+                        if (fetchUrl.trim()) {
+                          handleFetch();
+                        } else {
+                          try {
+                            const text = await navigator.clipboard.readText();
+                            if (text) setFetchUrl(text.trim());
+                          } catch {
+                            // Clipboard access denied
+                          }
+                        }
+                      }}
+                    >
+                      {isFetching ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : fetchUrl.trim() ? (
+                        <Link className="h-4 w-4" />
+                      ) : (
+                        <ClipboardPaste className="h-4 w-4" />
+                      )}
+                      {isFetching ? "Fetching..." : fetchUrl.trim() ? "Fetch" : "Paste"}
+                    </Button>
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                     Job description
                   </label>
                   <Textarea
                     value={rawDescription}
                     onChange={(event) => setRawDescription(event.target.value)}
-                    placeholder="Paste the full job description here..."
-                    className="min-h-[220px] font-mono text-sm leading-relaxed"
+                    placeholder="Paste the full job description here, or enter a URL above to fetch it..."
+                    className="min-h-[200px] font-mono text-sm leading-relaxed"
                   />
                 </div>
 
@@ -236,12 +330,16 @@ export const ManualImportSheet: React.FC<ManualImportSheetProps> = ({
                 )}
 
                 <Button
-                  onClick={handleAnalyze}
-                  disabled={!canAnalyze}
+                  onClick={fetchUrl.trim() ? handleFetch : handleAnalyze}
+                  disabled={isFetching || (!canFetch && !canAnalyze)}
                   className="w-full h-10 gap-2"
                 >
-                  <Sparkles className="h-4 w-4" />
-                  Analyze JD
+                  {isFetching ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Sparkles className="h-4 w-4" />
+                  )}
+                  {isFetching ? "Fetching..." : "Analyze JD"}
                 </Button>
               </div>
             )}

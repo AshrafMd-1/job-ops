@@ -26,6 +26,7 @@ interface ManualJobApiResponse {
   disciplines: string;
   degreeRequired: string;
   starting: string;
+  jobDescription: string;
 }
 
 /** JSON schema for manual job extraction response */
@@ -47,8 +48,9 @@ const MANUAL_JOB_SCHEMA: JsonSchemaDefinition = {
       disciplines: { type: 'string', description: 'Required disciplines or fields' },
       degreeRequired: { type: 'string', description: 'Required degree or education' },
       starting: { type: 'string', description: 'Start date information' },
+      jobDescription: { type: 'string', description: 'Clean text job description with responsibilities and requirements' },
     },
-    required: ['title', 'employer', 'location', 'salary', 'deadline', 'jobUrl', 'applicationLink', 'jobType', 'jobLevel', 'jobFunction', 'disciplines', 'degreeRequired', 'starting'],
+    required: ['title', 'employer', 'location', 'salary', 'deadline', 'jobUrl', 'applicationLink', 'jobType', 'jobLevel', 'jobFunction', 'disciplines', 'degreeRequired', 'starting', 'jobDescription'],
     additionalProperties: false,
   },
 };
@@ -84,26 +86,28 @@ export async function inferManualJobDetails(jobDescription: string): Promise<Man
 
 function buildInferencePrompt(jd: string): string {
   return `
-You are extracting structured data from a job description.
+You are extracting structured data from a job posting.
+The input may be raw HTML from a job listing page or plain text - extract the relevant job information either way.
 Return JSON only with the keys listed below. Use empty string if unknown.
-Do not guess or invent data.
+Do not guess or invent data. Ignore navigation, headers, footers, and other non-job content.
 
 Keys:
-- title
-- employer
-- location
-- salary
-- deadline
-- jobUrl (the listing URL, if present)
+- title (job title)
+- employer (company name)
+- location (job location)
+- salary (salary/compensation info)
+- deadline (application deadline)
+- jobUrl (the listing URL, if present in the content)
 - applicationLink (the apply URL, if present)
-- jobType
-- jobLevel
-- jobFunction
-- disciplines
-- degreeRequired
-- starting
+- jobType (full-time, part-time, contract, etc.)
+- jobLevel (entry, mid, senior, etc.)
+- jobFunction (engineering, marketing, etc.)
+- disciplines (required fields/disciplines)
+- degreeRequired (required education)
+- starting (start date)
+- jobDescription (clean plain text of the job description including responsibilities and requirements - extract this from the HTML/content)
 
-JOB DESCRIPTION:
+JOB POSTING CONTENT:
 ${jd}
 
 OUTPUT FORMAT (JSON ONLY):
@@ -120,7 +124,8 @@ OUTPUT FORMAT (JSON ONLY):
   "jobFunction": "",
   "disciplines": "",
   "degreeRequired": "",
-  "starting": ""
+  "starting": "",
+  "jobDescription": ""
 }
 `.trim();
 }
@@ -142,6 +147,7 @@ function normalizeDraft(parsed: ManualJobApiResponse): ManualJobDraft {
   if (parsed.disciplines?.trim()) out.disciplines = parsed.disciplines.trim();
   if (parsed.degreeRequired?.trim()) out.degreeRequired = parsed.degreeRequired.trim();
   if (parsed.starting?.trim()) out.starting = parsed.starting.trim();
+  if (parsed.jobDescription?.trim()) out.jobDescription = parsed.jobDescription.trim();
 
   return out;
 }

@@ -154,6 +154,11 @@ export interface ManualJobInferenceResponse {
   warning?: string | null;
 }
 
+export interface ManualJobFetchResponse {
+  content: string;
+  url: string;
+}
+
 export interface UpdateJobInput {
   status?: JobStatus;
   jobDescription?: string;

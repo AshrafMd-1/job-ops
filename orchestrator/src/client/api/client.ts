@@ -17,6 +17,7 @@ import type {
   CreateJobInput,
   ManualJobDraft,
   ManualJobInferenceResponse,
+  ManualJobFetchResponse,
   VisaSponsorSearchResponse,
   VisaSponsorStatusResponse,
   VisaSponsor,
@@ -38,7 +39,16 @@ async function fetchApi<T>(
     },
   });
 
-  const data: ApiResponse<T> = await response.json();
+  const text = await response.text();
+
+  let data: ApiResponse<T>;
+  try {
+    data = JSON.parse(text);
+  } catch {
+    // If the response is not JSON, it's likely an HTML error page
+    console.error('API returned non-JSON response:', text.substring(0, 500));
+    throw new Error(`Server error (${response.status}): Expected JSON but received HTML. Is the backend server running?`);
+  }
 
   if (!data.success) {
     throw new Error(data.error || 'API request failed');
@@ -148,6 +158,15 @@ export async function importUkVisaJobs(input: {
 }
 
 // Manual Job Import API
+export async function fetchJobFromUrl(input: {
+  url: string;
+}): Promise<ManualJobFetchResponse> {
+  return fetchApi<ManualJobFetchResponse>('/manual-jobs/fetch', {
+    method: 'POST',
+    body: JSON.stringify(input),
+  });
+}
+
 export async function inferManualJob(input: {
   jobDescription: string;
 }): Promise<ManualJobInferenceResponse> {

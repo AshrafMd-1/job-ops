@@ -6,6 +6,7 @@ import * as api from "../api";
 import { toast } from "sonner";
 
 vi.mock("../api", () => ({
+  fetchJobFromUrl: vi.fn(),
   inferManualJob: vi.fn(),
   importManualJob: vi.fn(),
 }));
@@ -41,7 +42,7 @@ describe("ManualImportSheet", () => {
     );
 
     fireEvent.change(
-      screen.getByPlaceholderText("Paste the full job description here..."),
+      screen.getByPlaceholderText("Paste the full job description here, or enter a URL above to fetch it..."),
       { target: { value: rawDescription } }
     );
     fireEvent.click(screen.getByRole("button", { name: /analyze jd/i }));
@@ -92,7 +93,7 @@ describe("ManualImportSheet", () => {
     );
 
     fireEvent.change(
-      screen.getByPlaceholderText("Paste the full job description here..."),
+      screen.getByPlaceholderText("Paste the full job description here, or enter a URL above to fetch it..."),
       { target: { value: rawDescription } }
     );
     fireEvent.click(screen.getByRole("button", { name: /analyze jd/i }));
@@ -122,7 +123,7 @@ describe("ManualImportSheet", () => {
     );
 
     fireEvent.change(
-      screen.getByPlaceholderText("Paste the full job description here..."),
+      screen.getByPlaceholderText("Paste the full job description here, or enter a URL above to fetch it..."),
       { target: { value: rawDescription } }
     );
     fireEvent.click(screen.getByRole("button", { name: /analyze jd/i }));
@@ -150,7 +151,7 @@ describe("ManualImportSheet", () => {
     );
 
     fireEvent.change(
-      screen.getByPlaceholderText("Paste the full job description here..."),
+      screen.getByPlaceholderText("Paste the full job description here, or enter a URL above to fetch it..."),
       { target: { value: "Backend Engineer role." } }
     );
     fireEvent.click(screen.getByRole("button", { name: /analyze jd/i }));
@@ -164,5 +165,138 @@ describe("ManualImportSheet", () => {
     );
     expect(onOpenChange).not.toHaveBeenCalled();
     expect(screen.getByRole("button", { name: /import job/i })).toBeEnabled();
+  });
+
+  describe("URL fetch functionality", () => {
+    it("shows Paste button when URL field is empty, Fetch when URL is entered", async () => {
+      render(
+        <ManualImportSheet open onOpenChange={vi.fn()} onImported={vi.fn()} />
+      );
+
+      // Initially should show Paste button
+      expect(screen.getByRole("button", { name: /paste/i })).toBeInTheDocument();
+
+      // Enter a URL
+      fireEvent.change(
+        screen.getByPlaceholderText("https://example.com/job-posting"),
+        { target: { value: "https://example.com/job" } }
+      );
+
+      // Should now show Fetch button
+      expect(screen.getByRole("button", { name: /fetch/i })).toBeInTheDocument();
+    });
+
+    it("fetches URL and proceeds to review on successful fetch", async () => {
+      vi.mocked(api.fetchJobFromUrl).mockResolvedValue({
+        content: "Software Engineer role at Acme Corp",
+        url: "https://example.com/job",
+      });
+      vi.mocked(api.inferManualJob).mockResolvedValue({
+        job: {
+          title: "Software Engineer",
+          employer: "Acme Corp",
+          location: "Remote",
+          jobDescription: "Great opportunity to join our team.",
+        },
+      });
+
+      render(
+        <ManualImportSheet open onOpenChange={vi.fn()} onImported={vi.fn()} />
+      );
+
+      // Enter a URL
+      fireEvent.change(
+        screen.getByPlaceholderText("https://example.com/job-posting"),
+        { target: { value: "https://example.com/job" } }
+      );
+
+      // Click Fetch
+      fireEvent.click(screen.getByRole("button", { name: /fetch/i }));
+
+      // Should show loading state then review
+      await screen.findByPlaceholderText("e.g. Junior Backend Engineer");
+
+      expect(api.fetchJobFromUrl).toHaveBeenCalledWith({
+        url: "https://example.com/job",
+      });
+      expect(api.inferManualJob).toHaveBeenCalledWith({
+        jobDescription: "Software Engineer role at Acme Corp",
+      });
+
+      // Check inferred values are shown
+      expect(screen.getByPlaceholderText("e.g. Junior Backend Engineer")).toHaveValue("Software Engineer");
+      expect(screen.getByPlaceholderText("e.g. Acme Labs")).toHaveValue("Acme Corp");
+    });
+
+    it("preserves fetched URL in the job URL field", async () => {
+      vi.mocked(api.fetchJobFromUrl).mockResolvedValue({
+        content: "Job description content",
+        url: "https://example.com/job",
+      });
+      vi.mocked(api.inferManualJob).mockResolvedValue({
+        job: {
+          title: "Engineer",
+          employer: "Company",
+        },
+      });
+
+      render(
+        <ManualImportSheet open onOpenChange={vi.fn()} onImported={vi.fn()} />
+      );
+
+      fireEvent.change(
+        screen.getByPlaceholderText("https://example.com/job-posting"),
+        { target: { value: "https://example.com/job" } }
+      );
+      fireEvent.click(screen.getByRole("button", { name: /fetch/i }));
+
+      await screen.findByPlaceholderText("e.g. Junior Backend Engineer");
+
+      // Check the job URL field has the fetched URL (first https://... input is Job URL)
+      const urlInputs = screen.getAllByPlaceholderText("https://...");
+      expect(urlInputs[0]).toHaveValue("https://example.com/job");
+    });
+
+    it("shows error and returns to paste step when fetch fails", async () => {
+      vi.mocked(api.fetchJobFromUrl).mockRejectedValue(new Error("Failed to fetch URL"));
+
+      render(
+        <ManualImportSheet open onOpenChange={vi.fn()} onImported={vi.fn()} />
+      );
+
+      fireEvent.change(
+        screen.getByPlaceholderText("https://example.com/job-posting"),
+        { target: { value: "https://example.com/bad-url" } }
+      );
+      fireEvent.click(screen.getByRole("button", { name: /fetch/i }));
+
+      await screen.findByText("Failed to fetch URL");
+
+      // Should still be on paste step
+      expect(screen.getByPlaceholderText("Paste the full job description here, or enter a URL above to fetch it...")).toBeInTheDocument();
+    });
+
+    it("shows error when inference fails after fetch", async () => {
+      vi.mocked(api.fetchJobFromUrl).mockResolvedValue({
+        content: "Job content",
+        url: "https://example.com/job",
+      });
+      vi.mocked(api.inferManualJob).mockRejectedValue(new Error("Inference failed"));
+
+      render(
+        <ManualImportSheet open onOpenChange={vi.fn()} onImported={vi.fn()} />
+      );
+
+      fireEvent.change(
+        screen.getByPlaceholderText("https://example.com/job-posting"),
+        { target: { value: "https://example.com/job" } }
+      );
+      fireEvent.click(screen.getByRole("button", { name: /fetch/i }));
+
+      await screen.findByText("Inference failed");
+
+      // Should be back on paste step
+      expect(screen.getByPlaceholderText("Paste the full job description here, or enter a URL above to fetch it...")).toBeInTheDocument();
+    });
   });
 });
