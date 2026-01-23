@@ -93,7 +93,7 @@ export async function generatePdf(
   jobId: string,
   tailoredContent: TailoredPdfContent,
   jobDescription: string,
-  baseResumePath?: string,
+  _baseResumePath?: string, // Deprecated: now always uses getProfile() which fetches from v4 API
   selectedProjectIds?: string | null
 ): Promise<PdfResult> {
   console.log(`📄 Generating PDF for job ${jobId} using RxResume v4 API...`);
@@ -108,10 +108,8 @@ export async function generatePdf(
     const { email, password, baseUrl } = await getCredentials();
     const client = new RxResumeClient(baseUrl);
 
-    // Read base resume
-    const baseResume = baseResumePath
-      ? JSON.parse(await import('fs/promises').then(fs => fs.readFile(baseResumePath, 'utf-8')))
-      : JSON.parse(JSON.stringify(await getProfile()));
+    // Read base resume from profile (fetches from v4 API if configured)
+    const baseResume = JSON.parse(JSON.stringify(await getProfile()));
 
     // Sanitize skills: Ensure all skills have required schema fields (visible, description, id, level, keywords)
     // This fixes issues where the base JSON uses a shorthand format (missing required fields)

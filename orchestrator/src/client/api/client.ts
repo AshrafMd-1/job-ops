@@ -176,6 +176,19 @@ export async function getProfileProjects(): Promise<ResumeProjectCatalogItem[]> 
   return fetchApi<ResumeProjectCatalogItem[]>('/profile/projects');
 }
 
+export async function getResumeProjectsCatalog(): Promise<ResumeProjectCatalogItem[]> {
+  try {
+    const settings = await getSettings();
+    if (settings.rxresumeBaseResumeId) {
+      return await getRxResumeProjects(settings.rxresumeBaseResumeId);
+    }
+  } catch {
+    // fall through to profile-based projects
+  }
+
+  return getProfileProjects();
+}
+
 export async function getProfile(): Promise<ResumeProfile> {
   return fetchApi<ResumeProfile>('/profile');
 }
@@ -184,10 +197,9 @@ export async function getProfileStatus(): Promise<ProfileStatusResponse> {
   return fetchApi<ProfileStatusResponse>('/profile/status');
 }
 
-export async function uploadProfile(profile: ResumeProfile): Promise<ProfileStatusResponse> {
-  return fetchApi<ProfileStatusResponse>('/profile/upload', {
+export async function refreshProfile(): Promise<ResumeProfile> {
+  return fetchApi<ResumeProfile>('/profile/refresh', {
     method: 'POST',
-    body: JSON.stringify({ profile }),
   });
 }
 
@@ -205,7 +217,7 @@ export async function validateRxresume(email?: string, password?: string): Promi
   });
 }
 
-export async function validateResumeJson(): Promise<ValidationResult> {
+export async function validateResumeConfig(): Promise<ValidationResult> {
   return fetchApi<ValidationResult>('/onboarding/validate/resume');
 }
 

@@ -69,35 +69,8 @@ settingsRouter.patch('/', async (req: Request, res: Response) => {
         promises.push(settingsRepo.setSetting('resumeProjects', null));
       } else {
         promises.push((async () => {
-          const baseResumeId = 'rxresumeBaseResumeId' in input
-            ? normalizeEnvInput(input.rxresumeBaseResumeId)
-            : await settingsRepo.getSetting('rxresumeBaseResumeId');
-
-          let profile: Record<string, unknown> = {};
-
-          if (baseResumeId) {
-            try {
-              const resume = await getResume(baseResumeId);
-              if (resume.data && typeof resume.data === 'object') {
-                profile = resume.data as Record<string, unknown>;
-              }
-            } catch (error) {
-              if (error instanceof RxResumeCredentialsError) {
-                throw new Error('RxResume credentials missing while validating resume projects.');
-              }
-            }
-          }
-
-          if (Object.keys(profile).length === 0) {
-            const rawProfile = await getProfile();
-
-            if (rawProfile === null || typeof rawProfile !== 'object' || Array.isArray(rawProfile)) {
-              throw new Error('Invalid resume profile format: expected a non-null object');
-            }
-
-            profile = rawProfile as Record<string, unknown>;
-          }
-
+          // getProfile() will fetch from RxResume v4 API using rxresumeBaseResumeId
+          const profile = await getProfile();
           const { catalog } = extractProjectsFromProfile(profile);
           const allowed = new Set(catalog.map((p) => p.id));
           const normalized = normalizeResumeProjectsSettings(resumeProjects, allowed);

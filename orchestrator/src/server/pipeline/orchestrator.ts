@@ -14,7 +14,7 @@ import { runUkVisaJobs } from '../services/ukvisajobs.js';
 import { scoreJobSuitability } from '../services/scorer.js';
 import { generateTailoring } from '../services/summary.js';
 import { generatePdf } from '../services/pdf.js';
-import { DEFAULT_PROFILE_PATH, getProfile } from '../services/profile.js';
+import { getProfile } from '../services/profile.js';
 import { getSetting } from '../repositories/settings.js';
 import { pickProjectIdsForJob } from '../services/projectSelection.js';
 import { extractProjectsFromProfile, resolveResumeProjectsSettings } from '../services/resumeProjects.js';
@@ -30,7 +30,6 @@ const DEFAULT_CONFIG: PipelineConfig = {
   topN: 10,
   minSuitabilityScore: 50,
   sources: ['gradcracker', 'indeed', 'linkedin', 'ukvisajobs'],
-  profilePath: DEFAULT_PROFILE_PATH,
   outputDir: join(getDataDir(), 'pdfs'),
   enableCrawling: true,
   enableScoring: true,
@@ -108,7 +107,7 @@ export async function runPipeline(config: Partial<PipelineConfig> = {}): Promise
   try {
     // Step 1: Load profile
     console.log('\n📋 Loading profile...');
-    const profile = await getProfile(mergedConfig.profilePath).catch((error) => {
+    const profile = await getProfile().catch((error) => {
       console.warn('⚠️ Failed to load profile for scoring, using empty profile:', error);
       return {} as Record<string, unknown>;
     });
@@ -348,7 +347,7 @@ export async function runPipeline(config: Partial<PipelineConfig> = {}): Promise
 
         // Process job (Generate Summary + PDF)
         // We catch errors here to ensure one failure doesn't stop the whole batch
-        const result = await processJob(job.id, { profilePath: mergedConfig.profilePath });
+        const result = await processJob(job.id, { force: false });
 
         if (result.success) {
           processedCount++;
@@ -417,7 +416,6 @@ export async function runPipeline(config: Partial<PipelineConfig> = {}): Promise
 
 export type ProcessJobOptions = {
   force?: boolean;
-  profilePath?: string;
 };
 
 /**
@@ -436,7 +434,7 @@ export async function summarizeJob(
     const job = await jobsRepo.getJobById(jobId);
     if (!job) return { success: false, error: 'Job not found' };
 
-    const profile = await getProfile(options?.profilePath);
+    const profile = await getProfile();
 
     // 1. Generate Summary & Tailoring
     let tailoredSummary = job.tailoredSummary;
@@ -520,7 +518,7 @@ export async function generateFinalPdf(
         skills: job.tailoredSkills ? JSON.parse(job.tailoredSkills) : []
       },
       job.jobDescription || '',
-      options?.profilePath || DEFAULT_PROFILE_PATH,
+      undefined, // deprecated baseResumePath parameter
       job.selectedProjectIds
     );
 
