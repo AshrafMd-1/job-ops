@@ -6,6 +6,10 @@ on:
   pull_request:
     branches: [ main ]
 
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   lint:
     name: Linting (Biome)
@@ -40,6 +44,9 @@ jobs:
   build:
     name: Build Verification
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        project: [orchestrator, extractors/gradcracker, extractors/ukvisajobs]
     steps:
       - uses: actions/checkout@v4
       - name: Setup Node
@@ -47,25 +54,14 @@ jobs:
         with:
           node-version: 20
           cache: 'npm'
-          cache-dependency-path: |
-            orchestrator/package-lock.json
-            extractors/gradcracker/package-lock.json
-            extractors/ukvisajobs/package-lock.json
+          cache-dependency-path: ${{ matrix.project }}/package-lock.json
       
-      - name: Build Orchestrator
+      - name: Build ${{ matrix.project }}
         run: |
-          npm ci
+          if [[ "${{ matrix.project }}" == extractors/* ]]; then
+            npm ci --ignore-scripts
+          else
+            npm ci
+          fi
           npm run build
-        working-directory: orchestrator
-      
-      - name: Build gradcracker extractor
-        run: |
-          npm ci
-          npm run build
-        working-directory: extractors/gradcracker
-      
-      - name: Build ukvisajobs extractor
-        run: |
-          npm ci
-          npm run build
-        working-directory: extractors/ukvisajobs
+        working-directory: ${{ matrix.project }}
