@@ -164,10 +164,32 @@ vi.mock("./orchestrator/OrchestratorSummary", () => ({
   OrchestratorSummary: () => <div data-testid="summary" />,
 }));
 
+vi.mock("./orchestrator/JobCommandBar", () => ({
+  JobCommandBar: ({
+    onSelectJob,
+    open,
+    onOpenChange,
+  }: {
+    onSelectJob: (tab: FilterTab, id: string) => void;
+    open?: boolean;
+    onOpenChange?: (open: boolean) => void;
+  }) => (
+    <div>
+      <div data-testid="command-open">{open ? "open" : "closed"}</div>
+      <button type="button" onClick={() => onSelectJob("discovered", "job-2")}>
+        Command Select Job
+      </button>
+      <button type="button" onClick={() => onOpenChange?.(false)}>
+        Close Command Bar
+      </button>
+    </div>
+  ),
+}));
+
 vi.mock("./orchestrator/OrchestratorFilters", () => ({
   OrchestratorFilters: ({
     onTabChange,
-    onSearchQueryChange,
+    onOpenCommandBar,
     onSourceFilterChange,
     onSponsorFilterChange,
     onSalaryFilterChange,
@@ -177,7 +199,7 @@ vi.mock("./orchestrator/OrchestratorFilters", () => ({
     filteredCount,
   }: {
     onTabChange: (t: FilterTab) => void;
-    onSearchQueryChange: (q: string) => void;
+    onOpenCommandBar: () => void;
     onSourceFilterChange: (source: string) => void;
     onSponsorFilterChange: (value: string) => void;
     onSalaryFilterChange: (value: {
@@ -196,8 +218,8 @@ vi.mock("./orchestrator/OrchestratorFilters", () => ({
       <button type="button" onClick={() => onTabChange("discovered")}>
         To Discovered
       </button>
-      <button type="button" onClick={() => onSearchQueryChange("test search")}>
-        Set Search
+      <button type="button" onClick={onOpenCommandBar}>
+        Open Command Bar
       </button>
       <button
         type="button"
@@ -247,6 +269,9 @@ vi.mock("./orchestrator/JobListPanel", () => ({
     selectedJobId: string | null;
   }) => (
     <div>
+      <div data-job-id="job-1" />
+      <div data-job-id="job-2" />
+      <div data-job-id="job-3" />
       <div data-testid="selected-job">{selectedJobId ?? "none"}</div>
       <button
         data-testid="toggle-select-all-on"
@@ -418,13 +443,82 @@ describe("OrchestratorPage", () => {
     });
   });
 
-  it("syncs search query to URL as a parameter", () => {
+  it("opens the command bar when the filters search button is clicked", () => {
     window.matchMedia = createMatchMedia(
       true,
     ) as unknown as typeof window.matchMedia;
 
     render(
       <MemoryRouter initialEntries={["/ready"]}>
+        <Routes>
+          <Route path="/:tab" element={<OrchestratorPage />} />
+          <Route path="/:tab/:jobId" element={<OrchestratorPage />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByTestId("command-open")).toHaveTextContent("closed");
+    fireEvent.click(screen.getByText("Open Command Bar"));
+    expect(screen.getByTestId("command-open")).toHaveTextContent("open");
+    fireEvent.click(screen.getByText("Close Command Bar"));
+    expect(screen.getByTestId("command-open")).toHaveTextContent("closed");
+  });
+
+  it("navigates from command search across states and clears active filters", async () => {
+    window.matchMedia = createMatchMedia(
+      true,
+    ) as unknown as typeof window.matchMedia;
+    const originalScrollIntoView = HTMLElement.prototype.scrollIntoView;
+    const scrollIntoViewMock = vi.fn();
+    Object.defineProperty(HTMLElement.prototype, "scrollIntoView", {
+      configurable: true,
+      value: scrollIntoViewMock,
+    });
+
+    try {
+      render(
+        <MemoryRouter
+          initialEntries={[
+            "/ready?source=linkedin&sponsor=confirmed&salaryMode=between&salaryMin=60000&salaryMax=90000&q=backend&sort=title-asc",
+          ]}
+        >
+          <LocationWatcher />
+          <Routes>
+            <Route path="/:tab" element={<OrchestratorPage />} />
+            <Route path="/:tab/:jobId" element={<OrchestratorPage />} />
+          </Routes>
+        </MemoryRouter>,
+      );
+
+      fireEvent.click(screen.getByText("Command Select Job"));
+
+      await waitFor(() => {
+        const locationText = screen.getByTestId("location").textContent || "";
+        expect(locationText).toContain("/discovered/job-2");
+        expect(locationText).toContain("sort=title-asc");
+        expect(locationText).not.toContain("source=");
+        expect(locationText).not.toContain("sponsor=");
+        expect(locationText).not.toContain("salaryMode=");
+        expect(locationText).not.toContain("salaryMin=");
+        expect(locationText).not.toContain("salaryMax=");
+        expect(locationText).not.toContain("q=");
+      });
+      expect(scrollIntoViewMock).toHaveBeenCalled();
+    } finally {
+      Object.defineProperty(HTMLElement.prototype, "scrollIntoView", {
+        configurable: true,
+        value: originalScrollIntoView,
+      });
+    }
+  });
+
+  it("removes legacy q query params on load", async () => {
+    window.matchMedia = createMatchMedia(
+      true,
+    ) as unknown as typeof window.matchMedia;
+
+    render(
+      <MemoryRouter initialEntries={["/ready?q=backend&sort=title-asc"]}>
         <LocationWatcher />
         <Routes>
           <Route path="/:tab" element={<OrchestratorPage />} />
@@ -433,10 +527,11 @@ describe("OrchestratorPage", () => {
       </MemoryRouter>,
     );
 
-    fireEvent.click(screen.getByText("Set Search"));
-    expect(screen.getByTestId("location").textContent).toContain(
-      "q=test+search",
-    );
+    await waitFor(() => {
+      const locationText = screen.getByTestId("location").textContent || "";
+      expect(locationText).toContain("sort=title-asc");
+      expect(locationText).not.toContain("q=");
+    });
   });
 
   it("syncs sorting to URL and removes it when default", () => {

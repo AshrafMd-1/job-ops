@@ -19,6 +19,7 @@ import type { AutomaticRunValues } from "./orchestrator/automatic-run";
 import { deriveExtractorLimits } from "./orchestrator/automatic-run";
 import type { FilterTab } from "./orchestrator/constants";
 import { FloatingBulkActionsBar } from "./orchestrator/FloatingBulkActionsBar";
+import { JobCommandBar } from "./orchestrator/JobCommandBar";
 import { JobDetailPanel } from "./orchestrator/JobDetailPanel";
 import { JobListPanel } from "./orchestrator/JobListPanel";
 import { OrchestratorFilters } from "./orchestrator/OrchestratorFilters";
@@ -37,13 +38,14 @@ import {
   getSourcesWithJobs,
 } from "./orchestrator/utils";
 
+const escapeCssAttributeValue = (value: string) =>
+  value.replaceAll("\\", "\\\\").replaceAll('"', '\\"');
+
 export const OrchestratorPage: React.FC = () => {
   const { tab, jobId } = useParams<{ tab: string; jobId?: string }>();
   const navigate = useNavigate();
   const {
     searchParams,
-    searchQuery,
-    setSearchQuery,
     sourceFilter,
     setSourceFilter,
     sponsorFilter,
@@ -89,7 +91,11 @@ export const OrchestratorPage: React.FC = () => {
   const [navOpen, setNavOpen] = useState(false);
   const [isRunModeModalOpen, setIsRunModeModalOpen] = useState(false);
   const [runMode, setRunMode] = useState<RunMode>("automatic");
+  const [isCommandBarOpen, setIsCommandBarOpen] = useState(false);
   const [isDetailDrawerOpen, setIsDetailDrawerOpen] = useState(false);
+  const [pendingCommandScrollJobId, setPendingCommandScrollJobId] = useState<
+    string | null
+  >(null);
   const [isCancelling, setIsCancelling] = useState(false);
   const [isDesktop, setIsDesktop] = useState(() =>
     typeof window !== "undefined"
@@ -134,7 +140,6 @@ export const OrchestratorPage: React.FC = () => {
     sourceFilter,
     sponsorFilter,
     salaryFilter,
-    searchQuery,
     sort,
   );
   const counts = useMemo(() => getJobCounts(jobs), [jobs]);
@@ -287,6 +292,51 @@ export const OrchestratorPage: React.FC = () => {
     }
   };
 
+  const handleCommandSelectJob = useCallback(
+    (targetTab: FilterTab, id: string) => {
+      setPendingCommandScrollJobId(id);
+      const nextParams = new URLSearchParams(searchParams);
+      for (const key of [
+        "source",
+        "sponsor",
+        "salaryMode",
+        "salaryMin",
+        "salaryMax",
+        "minSalary",
+      ]) {
+        nextParams.delete(key);
+      }
+      const query = nextParams.toString();
+      navigate(`/${targetTab}/${id}${query ? `?${query}` : ""}`);
+      if (!isDesktop) {
+        setIsDetailDrawerOpen(true);
+      }
+    },
+    [isDesktop, navigate, searchParams],
+  );
+
+  useEffect(() => {
+    if (!pendingCommandScrollJobId) return;
+    if (selectedJobId !== pendingCommandScrollJobId) return;
+    const hasPendingTargetInList = activeJobs.some(
+      (job) => job.id === pendingCommandScrollJobId,
+    );
+    if (!hasPendingTargetInList) return;
+    if (typeof document === "undefined") return;
+
+    const selector = `[data-job-id="${escapeCssAttributeValue(
+      pendingCommandScrollJobId,
+    )}"]`;
+    const target = document.querySelector<HTMLElement>(selector);
+    if (!target) return;
+
+    target.scrollIntoView({
+      behavior: isDesktop ? "smooth" : "auto",
+      block: "center",
+    });
+    setPendingCommandScrollJobId(null);
+  }, [activeJobs, isDesktop, pendingCommandScrollJobId, selectedJobId]);
+
   useEffect(() => {
     if (activeJobs.length === 0) {
       if (selectedJobId) handleSelectJobId(null);
@@ -366,12 +416,17 @@ export const OrchestratorPage: React.FC = () => {
 
         {/* Main content: tabs/filters -> list/detail */}
         <section className="space-y-4">
+          <JobCommandBar
+            jobs={jobs}
+            onSelectJob={handleCommandSelectJob}
+            open={isCommandBarOpen}
+            onOpenChange={setIsCommandBarOpen}
+          />
           <OrchestratorFilters
             activeTab={activeTab}
             onTabChange={setActiveTab}
             counts={counts}
-            searchQuery={searchQuery}
-            onSearchQueryChange={setSearchQuery}
+            onOpenCommandBar={() => setIsCommandBarOpen(true)}
             sourceFilter={sourceFilter}
             onSourceFilterChange={setSourceFilter}
             sponsorFilter={sponsorFilter}
@@ -395,7 +450,6 @@ export const OrchestratorPage: React.FC = () => {
               selectedJobId={selectedJobId}
               selectedJobIds={selectedJobIds}
               activeTab={activeTab}
-              searchQuery={searchQuery}
               onSelectJob={handleSelectJob}
               onToggleSelectJob={toggleSelectJob}
               onToggleSelectAll={toggleSelectAll}
