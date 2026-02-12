@@ -8,9 +8,22 @@ import {
   APPLICATION_TASK_TYPES,
   INTERVIEW_OUTCOMES,
   INTERVIEW_TYPES,
+  POST_APPLICATION_INTEGRATION_STATUSES,
+  POST_APPLICATION_MESSAGE_TYPES,
+  POST_APPLICATION_PROCESSING_STATUSES,
+  POST_APPLICATION_PROVIDERS,
+  POST_APPLICATION_RELEVANCE_DECISIONS,
+  POST_APPLICATION_SYNC_RUN_STATUSES,
 } from "@shared/types";
 import { sql } from "drizzle-orm";
-import { integer, real, sqliteTable, text } from "drizzle-orm/sqlite-core";
+import {
+  index,
+  integer,
+  real,
+  sqliteTable,
+  text,
+  uniqueIndex,
+} from "drizzle-orm/sqlite-core";
 
 export const jobs = sqliteTable("jobs", {
   id: text("id").primaryKey(),
@@ -163,6 +176,129 @@ export const settings = sqliteTable("settings", {
   updatedAt: text("updated_at").notNull().default(sql`(datetime('now'))`),
 });
 
+export const postApplicationIntegrations = sqliteTable(
+  "post_application_integrations",
+  {
+    id: text("id").primaryKey(),
+    provider: text("provider", { enum: POST_APPLICATION_PROVIDERS }).notNull(),
+    accountKey: text("account_key").notNull().default("default"),
+    displayName: text("display_name"),
+    status: text("status", { enum: POST_APPLICATION_INTEGRATION_STATUSES })
+      .notNull()
+      .default("disconnected"),
+    credentials: text("credentials", { mode: "json" }),
+    lastConnectedAt: integer("last_connected_at", { mode: "number" }),
+    lastSyncedAt: integer("last_synced_at", { mode: "number" }),
+    lastError: text("last_error"),
+    createdAt: text("created_at").notNull().default(sql`(datetime('now'))`),
+    updatedAt: text("updated_at").notNull().default(sql`(datetime('now'))`),
+  },
+  (table) => ({
+    providerAccountUnique: uniqueIndex(
+      "idx_post_app_integrations_provider_account_unique",
+    ).on(table.provider, table.accountKey),
+  }),
+);
+
+export const postApplicationSyncRuns = sqliteTable(
+  "post_application_sync_runs",
+  {
+    id: text("id").primaryKey(),
+    provider: text("provider", { enum: POST_APPLICATION_PROVIDERS }).notNull(),
+    accountKey: text("account_key").notNull().default("default"),
+    integrationId: text("integration_id").references(
+      () => postApplicationIntegrations.id,
+      { onDelete: "set null" },
+    ),
+    status: text("status", { enum: POST_APPLICATION_SYNC_RUN_STATUSES })
+      .notNull()
+      .default("running"),
+    startedAt: integer("started_at", { mode: "number" }).notNull(),
+    completedAt: integer("completed_at", { mode: "number" }),
+    messagesDiscovered: integer("messages_discovered").notNull().default(0),
+    messagesRelevant: integer("messages_relevant").notNull().default(0),
+    messagesClassified: integer("messages_classified").notNull().default(0),
+    messagesMatched: integer("messages_matched").notNull().default(0),
+    messagesApproved: integer("messages_approved").notNull().default(0),
+    messagesDenied: integer("messages_denied").notNull().default(0),
+    messagesErrored: integer("messages_errored").notNull().default(0),
+    errorCode: text("error_code"),
+    errorMessage: text("error_message"),
+    createdAt: text("created_at").notNull().default(sql`(datetime('now'))`),
+    updatedAt: text("updated_at").notNull().default(sql`(datetime('now'))`),
+  },
+  (table) => ({
+    providerAccountStartedAtIndex: index(
+      "idx_post_app_sync_runs_provider_account_started_at",
+    ).on(table.provider, table.accountKey, table.startedAt),
+  }),
+);
+
+export const postApplicationMessages = sqliteTable(
+  "post_application_messages",
+  {
+    id: text("id").primaryKey(),
+    provider: text("provider", { enum: POST_APPLICATION_PROVIDERS }).notNull(),
+    accountKey: text("account_key").notNull().default("default"),
+    integrationId: text("integration_id").references(
+      () => postApplicationIntegrations.id,
+      { onDelete: "set null" },
+    ),
+    syncRunId: text("sync_run_id").references(
+      () => postApplicationSyncRuns.id,
+      {
+        onDelete: "set null",
+      },
+    ),
+    externalMessageId: text("external_message_id").notNull(),
+    externalThreadId: text("external_thread_id"),
+    fromAddress: text("from_address").notNull().default(""),
+    fromDomain: text("from_domain"),
+    senderName: text("sender_name"),
+    subject: text("subject").notNull().default(""),
+    receivedAt: integer("received_at", { mode: "number" }).notNull(),
+    snippet: text("snippet").notNull().default(""),
+    classificationLabel: text("classification_label"),
+    classificationConfidence: real("classification_confidence"),
+    classificationPayload: text("classification_payload", { mode: "json" }),
+    relevanceLlmScore: real("relevance_llm_score"),
+    relevanceDecision: text("relevance_decision", {
+      enum: POST_APPLICATION_RELEVANCE_DECISIONS,
+    })
+      .notNull()
+      .default("needs_llm"),
+    matchConfidence: integer("match_confidence"),
+    messageType: text("message_type", {
+      enum: POST_APPLICATION_MESSAGE_TYPES,
+    })
+      .notNull()
+      .default("other"),
+    stageEventPayload: text("stage_event_payload", { mode: "json" }),
+    processingStatus: text("processing_status", {
+      enum: POST_APPLICATION_PROCESSING_STATUSES,
+    })
+      .notNull()
+      .default("pending_user"),
+    matchedJobId: text("matched_job_id").references(() => jobs.id, {
+      onDelete: "set null",
+    }),
+    decidedAt: integer("decided_at", { mode: "number" }),
+    decidedBy: text("decided_by"),
+    errorCode: text("error_code"),
+    errorMessage: text("error_message"),
+    createdAt: text("created_at").notNull().default(sql`(datetime('now'))`),
+    updatedAt: text("updated_at").notNull().default(sql`(datetime('now'))`),
+  },
+  (table) => ({
+    providerAccountExternalMessageUnique: uniqueIndex(
+      "idx_post_app_messages_provider_account_external_unique",
+    ).on(table.provider, table.accountKey, table.externalMessageId),
+    providerAccountReviewStatusIndex: index(
+      "idx_post_app_messages_provider_account_processing_status",
+    ).on(table.provider, table.accountKey, table.processingStatus),
+  }),
+);
+
 export type JobRow = typeof jobs.$inferSelect;
 export type NewJobRow = typeof jobs.$inferInsert;
 export type StageEventRow = typeof stageEvents.$inferSelect;
@@ -175,3 +311,15 @@ export type PipelineRunRow = typeof pipelineRuns.$inferSelect;
 export type NewPipelineRunRow = typeof pipelineRuns.$inferInsert;
 export type SettingsRow = typeof settings.$inferSelect;
 export type NewSettingsRow = typeof settings.$inferInsert;
+export type PostApplicationIntegrationRow =
+  typeof postApplicationIntegrations.$inferSelect;
+export type NewPostApplicationIntegrationRow =
+  typeof postApplicationIntegrations.$inferInsert;
+export type PostApplicationSyncRunRow =
+  typeof postApplicationSyncRuns.$inferSelect;
+export type NewPostApplicationSyncRunRow =
+  typeof postApplicationSyncRuns.$inferInsert;
+export type PostApplicationMessageRow =
+  typeof postApplicationMessages.$inferSelect;
+export type NewPostApplicationMessageRow =
+  typeof postApplicationMessages.$inferInsert;
