@@ -32,6 +32,7 @@ const parseIncomingDraft = (incomingJob: Job) => {
   const skillsJson = serializeTailoredSkills(
     fromEditableSkillGroups(skillsDraft),
   );
+  const tracerLinksEnabled = Boolean(incomingJob.tracerLinksEnabled);
 
   return {
     summary,
@@ -40,6 +41,7 @@ const parseIncomingDraft = (incomingJob: Job) => {
     selectedIds,
     skillsDraft,
     skillsJson,
+    tracerLinksEnabled,
   };
 };
 
@@ -65,6 +67,9 @@ export function useTailoringDraft({
     toEditableSkillGroups(parseTailoredSkills(job.tailoredSkills)),
   );
   const [openSkillGroupId, setOpenSkillGroupId] = useState<string>("");
+  const [tracerLinksEnabled, setTracerLinksEnabled] = useState(
+    Boolean(job.tracerLinksEnabled),
+  );
 
   const [savedSummary, setSavedSummary] = useState(job.tailoredSummary || "");
   const [savedHeadline, setSavedHeadline] = useState(
@@ -78,6 +83,9 @@ export function useTailoringDraft({
   );
   const [savedSkillsJson, setSavedSkillsJson] = useState(() =>
     serializeTailoredSkills(parseTailoredSkills(job.tailoredSkills)),
+  );
+  const [savedTracerLinksEnabled, setSavedTracerLinksEnabled] = useState(
+    Boolean(job.tracerLinksEnabled),
   );
 
   const lastJobIdRef = useRef(job.id);
@@ -98,6 +106,7 @@ export function useTailoringDraft({
     if (headline !== savedHeadline) return true;
     if (jobDescription !== savedDescription) return true;
     if (skillsJson !== savedSkillsJson) return true;
+    if (tracerLinksEnabled !== savedTracerLinksEnabled) return true;
     return hasSelectionDiff(selectedIds, savedSelectedIds);
   }, [
     summary,
@@ -108,6 +117,8 @@ export function useTailoringDraft({
     savedDescription,
     skillsJson,
     savedSkillsJson,
+    tracerLinksEnabled,
+    savedTracerLinksEnabled,
     selectedIds,
     savedSelectedIds,
   ]);
@@ -124,6 +135,8 @@ export function useTailoringDraft({
     setSavedDescription(next.description);
     setSavedSelectedIds(next.selectedIds);
     setSavedSkillsJson(next.skillsJson);
+    setTracerLinksEnabled(next.tracerLinksEnabled);
+    setSavedTracerLinksEnabled(next.tracerLinksEnabled);
   }, []);
 
   useEffect(() => {
@@ -210,6 +223,8 @@ export function useTailoringDraft({
     openSkillGroupId,
     setOpenSkillGroupId,
     skillsJson,
+    tracerLinksEnabled,
+    setTracerLinksEnabled,
     isDirty,
     applyIncomingDraft,
     handleToggleProject,

@@ -147,6 +147,18 @@ vi.mock("./resumeProjects", () => ({
   }),
 }));
 
+const mockTracerLinks = vi.hoisted(() => ({
+  resolveTracerPublicBaseUrl: vi.fn().mockReturnValue("https://jobops.example"),
+  rewriteResumeLinksWithTracer: vi
+    .fn()
+    .mockResolvedValue({ rewrittenLinks: 2 }),
+}));
+
+vi.mock("./tracer-links", () => ({
+  resolveTracerPublicBaseUrl: mockTracerLinks.resolveTracerPublicBaseUrl,
+  rewriteResumeLinksWithTracer: mockTracerLinks.rewriteResumeLinksWithTracer,
+}));
+
 // Mock the RxResumeClient
 vi.mock("./rxresume-client", () => ({
   RxResumeClient: vi.fn().mockImplementation(function (this: any) {
@@ -214,6 +226,12 @@ describe("PDF Service Tailoring Logic", () => {
     vi.clearAllMocks();
     mocks.readFile.mockResolvedValue(JSON.stringify(mockProfile));
     mockRxResumeClient.clearLastCreateData();
+    mockTracerLinks.resolveTracerPublicBaseUrl.mockReturnValue(
+      "https://jobops.example",
+    );
+    mockTracerLinks.rewriteResumeLinksWithTracer.mockResolvedValue({
+      rewrittenLinks: 2,
+    });
   });
 
   it("should use provided selectedProjectIds and BYPASS AI selection", async () => {
@@ -280,5 +298,28 @@ describe("PDF Service Tailoring Logic", () => {
       (p: any) => p.visible,
     ).length;
     expect(visibleCount).toBe(1);
+  });
+
+  it("does not rewrite links when tracer links are disabled", async () => {
+    await generatePdf("job-no-tracer", {}, "desc", undefined, undefined, {
+      tracerLinksEnabled: false,
+    });
+
+    expect(mockTracerLinks.resolveTracerPublicBaseUrl).not.toHaveBeenCalled();
+    expect(mockTracerLinks.rewriteResumeLinksWithTracer).not.toHaveBeenCalled();
+  });
+
+  it("rewrites links when tracer links are enabled", async () => {
+    await generatePdf("job-with-tracer", {}, "desc", undefined, undefined, {
+      tracerLinksEnabled: true,
+      requestOrigin: "https://jobops.example",
+    });
+
+    expect(mockTracerLinks.resolveTracerPublicBaseUrl).toHaveBeenCalledWith({
+      requestOrigin: "https://jobops.example",
+    });
+    expect(mockTracerLinks.rewriteResumeLinksWithTracer).toHaveBeenCalledTimes(
+      1,
+    );
   });
 });

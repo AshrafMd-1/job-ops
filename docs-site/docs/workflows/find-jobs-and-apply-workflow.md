@@ -57,8 +57,9 @@ These jobs already have tailored PDFs generated for the specific job description
 At this stage:
 
 1. Open job details.
-2. Download the tailored PDF.
-3. Submit your application externally.
+2. Optionally enable tracer links for that specific job.
+3. Download the tailored PDF.
+4. Submit your application externally.
 
 ### 5) Mark jobs as applied in JobOps
 
@@ -85,6 +86,8 @@ Once a job is marked `applied`, it becomes part of:
 - Increase tailored-job count only after score thresholds feel calibrated.
 - Expect scraper runtime variance by source.
 - Keep resume/project context up to date so scoring/tailoring quality stays high.
+- Use per-job tracer links when you want measurable outbound-link analytics.
+- If you use tracer links, review the risk note in [Tracer Links](../features/tracer-links): some recipients/security tools may treat redirects as suspicious.
 
 ## Related pages
 

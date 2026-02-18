@@ -162,6 +162,7 @@ export interface Job {
   tailoredSkills: string | null; // Generated resume skills (JSON)
   selectedProjectIds: string | null; // Comma-separated IDs of selected projects
   pdfPath: string | null; // Path to generated PDF
+  tracerLinksEnabled: boolean; // Rewrite outbound resume links to tracer links on next PDF generation
   sponsorMatchScore: number | null; // 0-100 fuzzy match score with visa sponsors
   sponsorMatchNames: string | null; // JSON array of matched sponsor names (when 100% matches or top match)
 
@@ -317,6 +318,7 @@ export interface UpdateJobInput {
   tailoredSkills?: string;
   selectedProjectIds?: string;
   pdfPath?: string;
+  tracerLinksEnabled?: boolean;
   appliedAt?: string;
   sponsorMatchScore?: number;
   sponsorMatchNames?: string;
@@ -367,6 +369,105 @@ export type ApiResponse<T> =
       error: ApiErrorPayload;
       meta: ApiMeta;
     };
+
+export interface TracerAnalyticsTimeseriesPoint {
+  day: string; // YYYY-MM-DD
+  clicks: number;
+  uniqueOpens: number;
+  botClicks: number;
+  humanClicks: number;
+}
+
+export interface TracerAnalyticsTopJob {
+  jobId: string;
+  title: string;
+  employer: string;
+  clicks: number;
+  uniqueOpens: number;
+  botClicks: number;
+  humanClicks: number;
+  lastClickedAt: number | null;
+}
+
+export interface TracerAnalyticsTopLink {
+  tracerLinkId: string;
+  token: string;
+  jobId: string;
+  title: string;
+  employer: string;
+  sourcePath: string;
+  sourceLabel: string;
+  destinationUrl: string;
+  clicks: number;
+  uniqueOpens: number;
+  botClicks: number;
+  humanClicks: number;
+  lastClickedAt: number | null;
+}
+
+export interface TracerAnalyticsResponse {
+  filters: {
+    jobId: string | null;
+    from: number | null;
+    to: number | null;
+    includeBots: boolean;
+    limit: number;
+  };
+  totals: {
+    clicks: number;
+    uniqueOpens: number;
+    botClicks: number;
+    humanClicks: number;
+  };
+  timeSeries: TracerAnalyticsTimeseriesPoint[];
+  topJobs: TracerAnalyticsTopJob[];
+  topLinks: TracerAnalyticsTopLink[];
+}
+
+export interface JobTracerLinkAnalyticsItem {
+  tracerLinkId: string;
+  token: string;
+  sourcePath: string;
+  sourceLabel: string;
+  destinationUrl: string;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+  clicks: number;
+  uniqueOpens: number;
+  botClicks: number;
+  humanClicks: number;
+  lastClickedAt: number | null;
+}
+
+export interface JobTracerLinksResponse {
+  job: {
+    id: string;
+    title: string;
+    employer: string;
+    tracerLinksEnabled: boolean;
+  };
+  totals: {
+    links: number;
+    clicks: number;
+    uniqueOpens: number;
+    botClicks: number;
+    humanClicks: number;
+  };
+  links: JobTracerLinkAnalyticsItem[];
+}
+
+export type TracerReadinessStatus = "ready" | "unconfigured" | "unavailable";
+
+export interface TracerReadinessResponse {
+  status: TracerReadinessStatus;
+  canEnable: boolean;
+  publicBaseUrl: string | null;
+  healthUrl: string | null;
+  checkedAt: number;
+  lastSuccessAt: number | null;
+  reason: string | null;
+}
 
 export const POST_APPLICATION_PROVIDERS = ["gmail", "imap"] as const;
 export type PostApplicationProvider =

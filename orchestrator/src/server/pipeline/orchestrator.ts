@@ -223,6 +223,7 @@ export async function runPipeline(
 
 export type ProcessJobOptions = {
   force?: boolean;
+  requestOrigin?: string | null;
 };
 
 /**
@@ -323,7 +324,7 @@ export async function summarizeJob(
  */
 export async function generateFinalPdf(
   jobId: string,
-  _options?: ProcessJobOptions,
+  options?: ProcessJobOptions,
 ): Promise<{
   success: boolean;
   error?: string;
@@ -348,6 +349,11 @@ export async function generateFinalPdf(
         job.jobDescription || "",
         undefined, // deprecated baseResumePath parameter
         job.selectedProjectIds,
+        {
+          tracerLinksEnabled: job.tracerLinksEnabled,
+          requestOrigin: options?.requestOrigin ?? null,
+          tracerCompanyName: job.employer ?? null,
+        },
       );
 
       if (!pdfResult.success) {

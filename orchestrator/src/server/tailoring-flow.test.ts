@@ -56,6 +56,10 @@ describe("Tailoring Flow", () => {
       "Senior TypeScript Developer", // Original JD
       undefined, // Deprecated profile path
       "project-a,project-c", // The manually selected projects
+      expect.objectContaining({
+        requestOrigin: null,
+        tracerLinksEnabled: undefined,
+      }),
     );
   });
 
@@ -86,6 +90,10 @@ describe("Tailoring Flow", () => {
       "Junior Java Developer",
       undefined, // Deprecated profile path
       undefined, // No projects selected
+      expect.objectContaining({
+        requestOrigin: null,
+        tracerLinksEnabled: undefined,
+      }),
     );
   });
 });

@@ -15,6 +15,7 @@ import { postApplicationProvidersRouter } from "./routes/post-application-provid
 import { postApplicationReviewRouter } from "./routes/post-application-review";
 import { profileRouter } from "./routes/profile";
 import { settingsRouter } from "./routes/settings";
+import { tracerLinksRouter } from "./routes/tracer-links";
 import { visaSponsorsRouter } from "./routes/visa-sponsors";
 import { webhookRouter } from "./routes/webhook";
 
@@ -34,3 +35,4 @@ apiRouter.use("/database", databaseRouter);
 apiRouter.use("/visa-sponsors", visaSponsorsRouter);
 apiRouter.use("/onboarding", onboardingRouter);
 apiRouter.use("/backups", backupRouter);
+apiRouter.use("/tracer-links", tracerLinksRouter);

@@ -43,6 +43,7 @@ import {
 } from "../../services/demo-simulator";
 import { getProfile } from "../../services/profile";
 import { scoreJobSuitability } from "../../services/scorer";
+import { getTracerReadiness } from "../../services/tracer-links";
 import * as visaSponsors from "../../services/visa-sponsors/index";
 
 export const jobsRouter = Router();
@@ -163,6 +164,7 @@ const updateJobSchema = z.object({
     }),
   selectedProjectIds: z.string().optional(),
   pdfPath: z.string().optional(),
+  tracerLinksEnabled: z.boolean().optional(),
   sponsorMatchScore: z.number().min(0).max(100).optional(),
   sponsorMatchNames: z.string().optional(),
 });
@@ -215,6 +217,36 @@ function parseStatusFilter(statusFilter?: string): JobStatus[] | undefined {
     | JobStatus[]
     | undefined;
   return parsed && parsed.length > 0 ? parsed : undefined;
+}
+
+function resolveRequestOrigin(req: Request): string | null {
+  const configuredBaseUrl = process.env.JOBOPS_PUBLIC_BASE_URL?.trim();
+  if (configuredBaseUrl) {
+    try {
+      const parsed = new URL(configuredBaseUrl);
+      if (parsed.protocol && parsed.host) {
+        return `${parsed.protocol}//${parsed.host}`;
+      }
+    } catch {
+      // Ignore invalid env and fall back to request-derived origin.
+    }
+  }
+
+  const trustProxy = Boolean(req.app?.get("trust proxy"));
+  let protocol = (req.protocol || "").trim();
+  let host = (req.header("host") || "").trim();
+
+  if (trustProxy) {
+    const forwardedProto =
+      req.header("x-forwarded-proto")?.split(",")[0]?.trim() ?? "";
+    const forwardedHost =
+      req.header("x-forwarded-host")?.split(",")[0]?.trim() ?? "";
+    if (forwardedProto) protocol = forwardedProto;
+    if (forwardedHost) host = forwardedHost;
+  }
+
+  if (!host || !protocol) return null;
+  return `${protocol}://${host}`;
 }
 
 function mapErrorForResult(error: unknown): {
@@ -832,6 +864,51 @@ jobsRouter.patch("/:id/outcome", async (req: Request, res: Response) => {
 jobsRouter.patch("/:id", async (req: Request, res: Response) => {
   try {
     const input = updateJobSchema.parse(req.body);
+    const currentJob = await jobsRepo.getJobById(req.params.id);
+
+    if (!currentJob) {
+      const err = new AppError({
+        status: 404,
+        code: "NOT_FOUND",
+        message: "Job not found",
+      });
+      logger.warn("Job update failed", {
+        route: "PATCH /api/jobs/:id",
+        jobId: req.params.id,
+        status: err.status,
+        code: err.code,
+      });
+      fail(res, err);
+      return;
+    }
+
+    const isTurningTracerLinksOn =
+      input.tracerLinksEnabled === true && !currentJob.tracerLinksEnabled;
+
+    if (isTurningTracerLinksOn) {
+      const readiness = await getTracerReadiness({
+        requestOrigin: resolveRequestOrigin(req),
+        force: true,
+      });
+
+      if (!readiness.canEnable) {
+        throw new AppError({
+          status: 409,
+          code: "CONFLICT",
+          message:
+            readiness.reason ??
+            "Tracer links are unavailable right now. Verify Tracer Links in Settings.",
+          details: {
+            tracerReadiness: {
+              status: readiness.status,
+              checkedAt: readiness.checkedAt,
+              publicBaseUrl: readiness.publicBaseUrl,
+            },
+          },
+        });
+      }
+    }
+
     const job = await jobsRepo.updateJob(req.params.id, input);
 
     if (!job) {
@@ -1031,7 +1108,9 @@ jobsRouter.post("/:id/generate-pdf", async (req: Request, res: Response) => {
       return okWithMeta(res, job, { simulated: true });
     }
 
-    const result = await generateFinalPdf(req.params.id);
+    const result = await generateFinalPdf(req.params.id, {
+      requestOrigin: resolveRequestOrigin(req),
+    });
 
     if (!result.success) {
       return res.status(400).json({ success: false, error: result.error });
@@ -1065,7 +1144,10 @@ jobsRouter.post("/:id/process", async (req: Request, res: Response) => {
       return okWithMeta(res, job, { simulated: true });
     }
 
-    const result = await processJob(req.params.id, { force });
+    const result = await processJob(req.params.id, {
+      force,
+      requestOrigin: resolveRequestOrigin(req),
+    });
 
     if (!result.success) {
       return res.status(400).json({ success: false, error: result.error });

@@ -123,9 +123,27 @@ High-level flow:
 1. Load selected base resume from RxResume.
 2. Apply tailored summary/headline/skills.
 3. Compute final visible projects from your selection rules.
-4. Create temporary resume in RxResume.
-5. Export PDF.
-6. Delete temporary resume.
+4. Optionally rewrite outbound links to tracer links (per-job toggle).
+5. Create temporary resume in RxResume.
+6. Export PDF.
+7. Delete temporary resume.
+
+### Per-job tracer links
+
+Before generating a PDF, each job can enable/disable tracer links.
+
+- Disabled: original RxResume links remain unchanged.
+- Enabled: eligible outbound links are rewritten to `https://<your-host>/cv/<company>-xx` (readable slug + 2-letter suffix).
+
+For background pipeline generation, configure:
+
+- `JOBOPS_PUBLIC_BASE_URL=https://your-host`
+
+Important:
+
+- tracer enablement is gated by readiness checks
+- if public host verification fails, enable is blocked until host health is restored
+- toggle changes apply on next PDF generation only
 
 ### What JobOps changes with AI
 

@@ -175,7 +175,9 @@ describe("OnboardingGate", () => {
 
     await waitFor(() => expect(api.validateRxresume).toHaveBeenCalled());
     expect(api.validateLlm).not.toHaveBeenCalled();
-    expect(screen.getByText("Welcome to Job Ops")).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByText("Welcome to Job Ops")).toBeInTheDocument();
+    });
     expect(screen.queryByText("LLM API key")).not.toBeInTheDocument();
   });
 });

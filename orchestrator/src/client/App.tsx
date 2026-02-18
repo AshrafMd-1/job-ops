@@ -17,6 +17,7 @@ import { InProgressBoardPage } from "./pages/InProgressBoardPage";
 import { JobPage } from "./pages/JobPage";
 import { OrchestratorPage } from "./pages/OrchestratorPage";
 import { SettingsPage } from "./pages/SettingsPage";
+import { TracerLinksPage } from "./pages/TracerLinksPage";
 import { TrackingInboxPage } from "./pages/TrackingInboxPage";
 import { VisaSponsorsPage } from "./pages/VisaSponsorsPage";
 
@@ -106,6 +107,7 @@ export const App: React.FC = () => {
                   element={<InProgressBoardPage />}
                 />
                 <Route path="/settings" element={<SettingsPage />} />
+                <Route path="/tracer-links" element={<TracerLinksPage />} />
                 <Route path="/visa-sponsors" element={<VisaSponsorsPage />} />
                 <Route path="/tracking-inbox" element={<TrackingInboxPage />} />
                 <Route path="/jobs/:tab" element={<OrchestratorPage />} />

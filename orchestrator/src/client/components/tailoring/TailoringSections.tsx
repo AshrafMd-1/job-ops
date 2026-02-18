@@ -8,6 +8,7 @@ import {
   AccordionTrigger,
 } from "@/components/ui/accordion";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { ProjectSelector } from "../discovered-panel/ProjectSelector";
 import type { EditableSkillGroup } from "../tailoring-utils";
 
@@ -18,6 +19,10 @@ interface TailoringSectionsProps {
   jobDescription: string;
   skillsDraft: EditableSkillGroup[];
   selectedIds: Set<string>;
+  tracerLinksEnabled: boolean;
+  tracerEnableBlocked: boolean;
+  tracerEnableBlockedReason: string | null;
+  tracerReadinessChecking?: boolean;
   openSkillGroupId: string;
   disableInputs: boolean;
   onSummaryChange: (value: string) => void;
@@ -32,6 +37,7 @@ interface TailoringSectionsProps {
   ) => void;
   onRemoveSkillGroup: (id: string) => void;
   onToggleProject: (id: string) => void;
+  onTracerLinksEnabledChange: (value: boolean) => void;
 }
 
 const sectionClass = "rounded-lg border border-border/60 bg-muted/20 px-0";
@@ -47,6 +53,10 @@ export const TailoringSections: React.FC<TailoringSectionsProps> = ({
   jobDescription,
   skillsDraft,
   selectedIds,
+  tracerLinksEnabled,
+  tracerEnableBlocked,
+  tracerEnableBlockedReason,
+  tracerReadinessChecking = false,
   openSkillGroupId,
   disableInputs,
   onSummaryChange,
@@ -57,7 +67,11 @@ export const TailoringSections: React.FC<TailoringSectionsProps> = ({
   onUpdateSkillGroup,
   onRemoveSkillGroup,
   onToggleProject,
+  onTracerLinksEnabledChange,
 }) => {
+  const tracerToggleDisabled =
+    disableInputs || (!tracerLinksEnabled && tracerEnableBlocked);
+
   return (
     <Accordion type="multiple" className="space-y-3">
       <AccordionItem value="job-description" className={sectionClass}>
@@ -237,6 +251,42 @@ export const TailoringSections: React.FC<TailoringSectionsProps> = ({
             maxProjects={3}
             disabled={disableInputs}
           />
+        </AccordionContent>
+      </AccordionItem>
+
+      <AccordionItem value="tracer-links" className={sectionClass}>
+        <AccordionTrigger className={triggerClass}>
+          Tracer Links
+        </AccordionTrigger>
+        <AccordionContent className="px-3 pb-3 pt-1">
+          <div className="rounded-md border border-border/60 bg-background/60 p-3">
+            <label
+              htmlFor="tailor-tracer-links-enabled"
+              className="flex cursor-pointer items-center gap-3"
+            >
+              <Checkbox
+                id="tailor-tracer-links-enabled"
+                checked={tracerLinksEnabled}
+                onCheckedChange={(checked) =>
+                  onTracerLinksEnabledChange(Boolean(checked))
+                }
+                disabled={tracerToggleDisabled}
+              />
+              <span className="text-sm font-medium text-foreground">
+                Enable tracer links for this job
+              </span>
+            </label>
+            <p className="mt-2 text-xs text-muted-foreground">
+              {tracerReadinessChecking
+                ? "Checking tracer-link readiness..."
+                : "When enabled, outgoing resume links are rewritten to JobOps tracer links on the next PDF generation. Existing PDFs are unchanged."}
+            </p>
+            {tracerEnableBlockedReason && !tracerLinksEnabled ? (
+              <p className="mt-2 text-xs text-destructive">
+                Tracer links are unavailable: {tracerEnableBlockedReason}
+              </p>
+            ) : null}
+          </div>
         </AccordionContent>
       </AccordionItem>
     </Accordion>
