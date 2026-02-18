@@ -1,4 +1,4 @@
-# JobOps ✨ Your Ironman Suit for Job Hunting
+# JobOps: Your Ironman Suit for Job Hunting
 
 **Automate the hunt.** Scrapes major job boards (LinkedIn, Indeed, Glassdoor), **AI-scores suitability**, **tailors resumes** (RxResume), and **tracks application emails** automatically.
 
@@ -28,7 +28,7 @@ Apply & Track
   https://github.com/user-attachments/assets/06e5e782-47f5-42d0-8b28-b89102d7ea1b
 </details>
 
-## 📚 Documentation (Start Here)
+## Documentation (Start Here)
 
 JobOps ships with full docs for setup, architecture, extractors, and troubleshooting.
 
@@ -41,7 +41,7 @@ If you want the serious view of the project, start here:
 - [Extractor System](https://jobops.dakheera47.com/docs/extractors/overview)
 - [Troubleshooting](https://jobops.dakheera47.com/docs/troubleshooting/common-problems)
 
-## 🚀 Quick Start (10 Min)
+## Quick Start (10 Min)
 
 Prefer guided setup? Follow the [Self-Hosting Guide](https://jobops.dakheera47.com/docs/getting-started/self-hosting).
 
