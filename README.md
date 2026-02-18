@@ -9,7 +9,7 @@ Self-hosted. Docker-based. **Stop applying manually.**
 [![License](https://img.shields.io/github/license/DaKheera47/job-ops)](LICENSE)
 [![Contributors](https://img.shields.io/github/contributors-anon/dakheera47/job-ops)](Contributors)
 
-## 🎥 40s Demo: Crawl → Score → PDF → Track
+## 40s Demo: Crawl → Score → PDF → Track
 
 <details>
 <summary>
