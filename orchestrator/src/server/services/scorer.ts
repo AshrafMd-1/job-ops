@@ -5,7 +5,8 @@
 import { logger } from "@infra/logger";
 import type { Job } from "@shared/types";
 import { getSetting } from "../repositories/settings";
-import { type JsonSchemaDefinition, LlmService } from "./llm-service";
+import { LlmService } from "./llm/service";
+import type { JsonSchemaDefinition } from "./llm/types";
 import { getEffectiveSettings } from "./settings";
 
 interface SuitabilityResult {
@@ -113,7 +114,10 @@ export async function scoreJobSuitability(
       jobId: job.id,
       error: result.error,
     });
-    return mockScore(job, settings);
+    return mockScore(job, {
+      penalizeMissingSalary: settings.penalizeMissingSalary.value,
+      missingSalaryPenalty: settings.missingSalaryPenalty.value,
+    });
   }
 
   const { score, reason } = result.data;
@@ -123,7 +127,10 @@ export async function scoreJobSuitability(
     logger.error("Invalid score in AI response, using mock scoring", {
       jobId: job.id,
     });
-    return mockScore(job, settings);
+    return mockScore(job, {
+      penalizeMissingSalary: settings.penalizeMissingSalary.value,
+      missingSalaryPenalty: settings.missingSalaryPenalty.value,
+    });
   }
 
   const clampedScore = Math.min(100, Math.max(0, Math.round(score)));
@@ -131,8 +138,8 @@ export async function scoreJobSuitability(
 
   // Apply salary penalty if enabled
   const penaltyResult = applySalaryPenalty(job, clampedScore, clampedReason, {
-    penalizeMissingSalary: settings.penalizeMissingSalary,
-    missingSalaryPenalty: settings.missingSalaryPenalty,
+    penalizeMissingSalary: settings.penalizeMissingSalary.value,
+    missingSalaryPenalty: settings.missingSalaryPenalty.value,
   });
 
   return {
