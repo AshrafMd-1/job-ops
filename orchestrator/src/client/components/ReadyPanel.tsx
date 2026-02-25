@@ -39,6 +39,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { trackProductEvent } from "@/lib/analytics";
 import {
   cn,
   copyTextToClipboard,
@@ -132,6 +133,12 @@ export const ReadyPanel: React.FC<ReadyPanelProps> = ({
       try {
         // Revert to ready status
         await api.updateJob(jobId, { status: "ready" });
+        trackProductEvent("jobs_job_action_completed", {
+          action: "move_to_ready",
+          result: "success",
+          from_status: "applied",
+          to_status: "ready",
+        });
         toast.success("Reverted to Ready");
 
         if (recentlyApplied?.timeoutId) {
@@ -140,6 +147,12 @@ export const ReadyPanel: React.FC<ReadyPanelProps> = ({
         setRecentlyApplied(null);
         await onJobUpdated();
       } catch (error) {
+        trackProductEvent("jobs_job_action_completed", {
+          action: "move_to_ready",
+          result: "error",
+          from_status: "applied",
+          to_status: "ready",
+        });
         const message =
           error instanceof Error ? error.message : "Failed to undo";
         toast.error(message);
@@ -155,6 +168,12 @@ export const ReadyPanel: React.FC<ReadyPanelProps> = ({
     try {
       setIsMarkingApplied(true);
       await markAsAppliedMutation.mutateAsync(job.id);
+      trackProductEvent("jobs_job_action_completed", {
+        action: "mark_applied",
+        result: "success",
+        from_status: job.status,
+        to_status: "applied",
+      });
 
       // Store for undo
       const timeoutId = setTimeout(() => {
@@ -181,6 +200,12 @@ export const ReadyPanel: React.FC<ReadyPanelProps> = ({
         duration: 6000,
       });
     } catch (error) {
+      trackProductEvent("jobs_job_action_completed", {
+        action: "mark_applied",
+        result: "error",
+        from_status: job.status,
+        to_status: "applied",
+      });
       const message =
         error instanceof Error ? error.message : "Failed to mark as applied";
       toast.error(message);
@@ -195,9 +220,19 @@ export const ReadyPanel: React.FC<ReadyPanelProps> = ({
     try {
       setIsRegenerating(true);
       await api.generateJobPdf(job.id);
+      trackProductEvent("jobs_job_action_completed", {
+        action: "generate_pdf",
+        result: "success",
+        from_status: job.status,
+      });
       toast.success("PDF regenerated");
       await onJobUpdated();
     } catch (error) {
+      trackProductEvent("jobs_job_action_completed", {
+        action: "generate_pdf",
+        result: "error",
+        from_status: job.status,
+      });
       const message =
         error instanceof Error ? error.message : "Failed to regenerate PDF";
       toast.error(message);
@@ -216,10 +251,22 @@ export const ReadyPanel: React.FC<ReadyPanelProps> = ({
 
     try {
       await skipJobMutation.mutateAsync(job.id);
+      trackProductEvent("jobs_job_action_completed", {
+        action: "skip",
+        result: "success",
+        from_status: job.status,
+        to_status: "skipped",
+      });
       toast.message("Job skipped");
       onJobMoved(job.id);
       await onJobUpdated();
     } catch (error) {
+      trackProductEvent("jobs_job_action_completed", {
+        action: "skip",
+        result: "error",
+        from_status: job.status,
+        to_status: "skipped",
+      });
       const message = error instanceof Error ? error.message : "Failed to skip";
       toast.error(message);
     }
@@ -244,10 +291,20 @@ export const ReadyPanel: React.FC<ReadyPanelProps> = ({
     try {
       setIsRegenerating(true);
       await api.generateJobPdf(job.id);
+      trackProductEvent("jobs_job_action_completed", {
+        action: "generate_pdf",
+        result: "success",
+        from_status: job.status,
+      });
       toast.success("PDF regenerated");
       await onJobUpdated();
       setMode("ready");
     } catch (error) {
+      trackProductEvent("jobs_job_action_completed", {
+        action: "generate_pdf",
+        result: "error",
+        from_status: job.status,
+      });
       const message =
         error instanceof Error ? error.message : "Failed to regenerate PDF";
       toast.error(message);
@@ -293,8 +350,22 @@ export const ReadyPanel: React.FC<ReadyPanelProps> = ({
         job={job}
         className="pb-4 border-b border-border/40"
         onCheckSponsor={async () => {
-          await api.checkSponsor(job.id);
-          await onJobUpdated();
+          try {
+            await api.checkSponsor(job.id);
+            trackProductEvent("jobs_job_action_completed", {
+              action: "check_sponsor",
+              result: "success",
+              from_status: job.status,
+            });
+            await onJobUpdated();
+          } catch (error) {
+            trackProductEvent("jobs_job_action_completed", {
+              action: "check_sponsor",
+              result: "error",
+              from_status: job.status,
+            });
+            throw error;
+          }
         }}
       />
 

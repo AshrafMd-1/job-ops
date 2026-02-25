@@ -12,6 +12,7 @@ import {
   CommandSeparator,
 } from "@/components/ui/command";
 import { DialogDescription, DialogTitle } from "@/components/ui/dialog";
+import { bucketQueryLength, trackProductEvent } from "@/lib/analytics";
 import type { FilterTab } from "./constants";
 import {
   extractLeadingAtToken,
@@ -205,6 +206,14 @@ export const JobCommandBar: React.FC<JobCommandBarProps> = ({
                       value={`${job.id} ${job.title} ${job.employer}`}
                       keywords={[job.title, job.employer]}
                       onSelect={() => {
+                        trackProductEvent("jobs_command_bar_job_selected", {
+                          had_status_lock: Boolean(activeLock),
+                          status_lock: activeLock ?? "none",
+                          result_group: group.id,
+                          query_length_bucket: bucketQueryLength(
+                            stripLeadingAtToken(query).trim(),
+                          ),
+                        });
                         closeDialog();
                         onSelectJob(getFilterTab(job.status), job.id);
                       }}

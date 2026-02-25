@@ -42,6 +42,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { bucketClicks, bucketCount, trackProductEvent } from "@/lib/analytics";
 import { copyTextToClipboard } from "@/lib/utils";
 
 const chartConfig = {
@@ -229,9 +230,16 @@ export const TracerLinksPage: React.FC = () => {
     return { humanClicks, totalClicks, lastActivityAt };
   }, [drilldownMode, jobDrilldown]);
 
-  const handleCopyDestination = async (destinationUrl: string) => {
+  const handleCopyDestination = async (
+    destinationUrl: string,
+    isActiveLink: boolean,
+  ) => {
     try {
       await copyTextToClipboard(destinationUrl);
+      trackProductEvent("tracer_destination_copied", {
+        drilldown_mode: drilldownMode,
+        is_active_link: isActiveLink,
+      });
       toast.success("Link copied");
     } catch {
       toast.error("Could not copy link");
@@ -240,9 +248,38 @@ export const TracerLinksPage: React.FC = () => {
   const getRowClicks = (row: JobTracerLinkAnalyticsItem) =>
     drilldownMode === "human" ? row.humanClicks : row.clicks;
 
-  const handleSelectTopJob = (job: TracerAnalyticsTopJob) => {
+  const getDateRangeDaysBucket = () => {
+    if (!query.from || !query.to || query.to < query.from) return "unset";
+    const secondsPerDay = 24 * 60 * 60;
+    const days = Math.floor((query.to - query.from) / secondsPerDay) + 1;
+    return bucketCount(days);
+  };
+
+  const trackFiltersApplied = () => {
+    trackProductEvent("tracer_filters_applied", {
+      include_bots: includeBots,
+      has_from: Boolean(fromDate),
+      has_to: Boolean(toDate),
+      date_range_days_bucket: getDateRangeDaysBucket(),
+    });
+  };
+
+  const handleSelectTopJob = (job: TracerAnalyticsTopJob, rank: number) => {
+    trackProductEvent("tracer_drilldown_opened", {
+      rank,
+      human_clicks_bucket: bucketClicks(job.humanClicks),
+      total_clicks_bucket: bucketClicks(job.clicks),
+    });
     setSelectedDrilldownJobId(job.jobId);
     setIsDrilldownOpen(true);
+  };
+
+  const handleSetDrilldownMode = (mode: "human" | "all") => {
+    if (drilldownMode === mode) return;
+    setDrilldownMode(mode);
+    trackProductEvent("tracer_drilldown_mode_changed", {
+      mode,
+    });
   };
 
   return (
@@ -269,6 +306,7 @@ export const TracerLinksPage: React.FC = () => {
                       type="date"
                       value={fromDate}
                       onChange={(event) => setFromDate(event.target.value)}
+                      onBlur={trackFiltersApplied}
                     />
                   </div>
                   <div className="space-y-1">
@@ -278,6 +316,7 @@ export const TracerLinksPage: React.FC = () => {
                       type="date"
                       value={toDate}
                       onChange={(event) => setToDate(event.target.value)}
+                      onBlur={trackFiltersApplied}
                     />
                   </div>
                   <label
@@ -287,9 +326,15 @@ export const TracerLinksPage: React.FC = () => {
                     <Checkbox
                       id="tracer-include-bots"
                       checked={includeBots}
-                      onCheckedChange={(checked) =>
-                        setIncludeBots(Boolean(checked))
-                      }
+                      onCheckedChange={(checked) => {
+                        setIncludeBots(Boolean(checked));
+                        trackProductEvent("tracer_filters_applied", {
+                          include_bots: Boolean(checked),
+                          has_from: Boolean(fromDate),
+                          has_to: Boolean(toDate),
+                          date_range_days_bucket: getDateRangeDaysBucket(),
+                        });
+                      }}
                     />
                     <span className="text-sm">Include likely bots</span>
                   </label>
@@ -390,14 +435,14 @@ export const TracerLinksPage: React.FC = () => {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {(analytics?.topJobs ?? []).map((row) => (
+              {(analytics?.topJobs ?? []).map((row, index) => (
                 <TableRow
                   key={row.jobId}
                   className="cursor-pointer"
                   data-state={
                     selectedJobId === row.jobId ? "selected" : undefined
                   }
-                  onClick={() => handleSelectTopJob(row)}
+                  onClick={() => handleSelectTopJob(row, index + 1)}
                 >
                   <TableCell>
                     <div className="font-medium">{row.title}</div>
@@ -473,7 +518,7 @@ export const TracerLinksPage: React.FC = () => {
                         variant={
                           drilldownMode === "human" ? "default" : "outline"
                         }
-                        onClick={() => setDrilldownMode("human")}
+                        onClick={() => handleSetDrilldownMode("human")}
                       >
                         Human only
                       </Button>
@@ -483,7 +528,7 @@ export const TracerLinksPage: React.FC = () => {
                         variant={
                           drilldownMode === "all" ? "default" : "outline"
                         }
-                        onClick={() => setDrilldownMode("all")}
+                        onClick={() => handleSetDrilldownMode("all")}
                       >
                         Human + bots
                       </Button>
@@ -509,6 +554,12 @@ export const TracerLinksPage: React.FC = () => {
                           target="_blank"
                           rel="noreferrer"
                           className="inline-flex"
+                          onClick={() =>
+                            trackProductEvent("tracer_external_link_opened", {
+                              origin: "drilldown",
+                              drilldown_mode: drilldownMode,
+                            })
+                          }
                         >
                           <Button
                             type="button"
@@ -525,7 +576,7 @@ export const TracerLinksPage: React.FC = () => {
                           variant="ghost"
                           className="h-7 w-7"
                           onClick={() =>
-                            void handleCopyDestination(row.destinationUrl)
+                            void handleCopyDestination(row.destinationUrl, true)
                           }
                         >
                           <Copy className="h-4 w-4" />
@@ -564,6 +615,15 @@ export const TracerLinksPage: React.FC = () => {
                                   target="_blank"
                                   rel="noreferrer"
                                   className="inline-flex"
+                                  onClick={() =>
+                                    trackProductEvent(
+                                      "tracer_external_link_opened",
+                                      {
+                                        origin: "drilldown",
+                                        drilldown_mode: drilldownMode,
+                                      },
+                                    )
+                                  }
                                 >
                                   <Button
                                     type="button"
@@ -582,6 +642,7 @@ export const TracerLinksPage: React.FC = () => {
                                   onClick={() =>
                                     void handleCopyDestination(
                                       row.destinationUrl,
+                                      false,
                                     )
                                   }
                                 >

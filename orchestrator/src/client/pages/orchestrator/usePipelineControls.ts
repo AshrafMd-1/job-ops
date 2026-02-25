@@ -7,6 +7,7 @@ import {
 import type { AppSettings, JobSource } from "@shared/types.js";
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
+import { trackProductEvent } from "@/lib/analytics";
 import type { AutomaticRunValues } from "./automatic-run";
 import {
   deriveExtractorLimits,
@@ -64,15 +65,27 @@ export function usePipelineControls(
     setIsCancelling(false);
 
     if (pipelineTerminalEvent.status === "cancelled") {
+      trackProductEvent("jobs_pipeline_run_finished", {
+        status: "cancelled",
+        had_error_message: false,
+      });
       toast.message("Pipeline cancelled");
       return;
     }
 
     if (pipelineTerminalEvent.status === "failed") {
+      trackProductEvent("jobs_pipeline_run_finished", {
+        status: "failed",
+        had_error_message: Boolean(pipelineTerminalEvent.errorMessage),
+      });
       toast.error(pipelineTerminalEvent.errorMessage || "Pipeline failed");
       return;
     }
 
+    trackProductEvent("jobs_pipeline_run_finished", {
+      status: "completed",
+      had_error_message: false,
+    });
     toast.success("Pipeline completed");
   }, [pipelineTerminalEvent, setIsPipelineRunning]);
 
@@ -86,11 +99,30 @@ export function usePipelineControls(
       topN: number;
       minSuitabilityScore: number;
       sources: JobSource[];
+      analytics?: {
+        mode?: string;
+        country?: string;
+        hasCityLocations?: boolean;
+        searchTermsCount?: number;
+      };
     }) => {
       try {
         setIsPipelineRunning(true);
         setIsCancelling(false);
-        await api.runPipeline(config);
+        trackProductEvent("jobs_pipeline_run_started", {
+          mode: config.analytics?.mode ?? "automatic",
+          source_count: config.sources.length,
+          top_n: config.topN,
+          min_suitability_score: config.minSuitabilityScore,
+          country: config.analytics?.country,
+          has_city_locations: config.analytics?.hasCityLocations,
+          search_terms_count: config.analytics?.searchTermsCount,
+        });
+        await api.runPipeline({
+          topN: config.topN,
+          minSuitabilityScore: config.minSuitabilityScore,
+          sources: config.sources,
+        });
         toast.message("Pipeline started", {
           description: `Sources: ${config.sources.join(", ")}. This may take a few minutes.`,
         });
@@ -110,6 +142,9 @@ export function usePipelineControls(
 
     try {
       setIsCancelling(true);
+      trackProductEvent("jobs_pipeline_run_cancel_requested", {
+        was_running: isPipelineRunning,
+      });
       const result = await api.cancelPipeline();
       toast.message(result.message);
     } catch (error) {
@@ -167,6 +202,12 @@ export function usePipelineControls(
         topN: values.topN,
         minSuitabilityScore: values.minSuitabilityScore,
         sources: compatibleSources,
+        analytics: {
+          mode: "automatic",
+          country: values.country,
+          hasCityLocations: values.cityLocations.length > 0,
+          searchTermsCount: values.searchTerms.length,
+        },
       });
       setIsRunModeModalOpen(false);
     },
@@ -175,6 +216,9 @@ export function usePipelineControls(
 
   const handleManualImported = useCallback(
     async (importedJobId: string) => {
+      trackProductEvent("jobs_pipeline_run_started", {
+        mode: "manual_import",
+      });
       await loadJobs();
       navigateWithContext("ready", importedJobId);
     },

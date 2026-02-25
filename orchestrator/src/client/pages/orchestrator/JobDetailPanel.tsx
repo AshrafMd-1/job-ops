@@ -41,6 +41,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
+import { trackProductEvent } from "@/lib/analytics";
 import {
   copyTextToClipboard,
   formatJobForWebhook,
@@ -215,13 +216,30 @@ export const JobDetailPanel: React.FC<JobDetailPanelProps> = ({
 
       if (selectedJob.status === "ready") {
         await api.generateJobPdf(selectedJob.id);
+        trackProductEvent("jobs_job_action_completed", {
+          action: "generate_pdf",
+          result: "success",
+          from_status: selectedJob.status,
+        });
         toast.success("Resume regenerated successfully");
       } else {
         await api.processJob(selectedJob.id);
+        trackProductEvent("jobs_job_action_completed", {
+          action: "process_job",
+          result: "success",
+          from_status: selectedJob.status,
+          to_status: "ready",
+        });
         toast.success("Resume generated successfully");
       }
       await onJobUpdated();
     } catch (error) {
+      trackProductEvent("jobs_job_action_completed", {
+        action: selectedJob.status === "ready" ? "generate_pdf" : "process_job",
+        result: "error",
+        from_status: selectedJob.status,
+        ...(selectedJob.status === "ready" ? {} : { to_status: "ready" }),
+      });
       const message =
         error instanceof Error ? error.message : "Failed to process job";
       toast.error(message);
@@ -234,9 +252,21 @@ export const JobDetailPanel: React.FC<JobDetailPanelProps> = ({
     if (!selectedJob) return;
     try {
       await markAsAppliedMutation.mutateAsync(selectedJob.id);
+      trackProductEvent("jobs_job_action_completed", {
+        action: "mark_applied",
+        result: "success",
+        from_status: selectedJob.status,
+        to_status: "applied",
+      });
       toast.success("Marked as applied");
       await onJobUpdated();
     } catch (error) {
+      trackProductEvent("jobs_job_action_completed", {
+        action: "mark_applied",
+        result: "error",
+        from_status: selectedJob.status,
+        to_status: "applied",
+      });
       const message =
         error instanceof Error ? error.message : "Failed to mark as applied";
       toast.error(message);
@@ -247,9 +277,21 @@ export const JobDetailPanel: React.FC<JobDetailPanelProps> = ({
     if (!selectedJob) return;
     try {
       await skipJobMutation.mutateAsync(selectedJob.id);
+      trackProductEvent("jobs_job_action_completed", {
+        action: "skip",
+        result: "success",
+        from_status: selectedJob.status,
+        to_status: "skipped",
+      });
       toast.message("Job skipped");
       await onJobUpdated();
     } catch (error) {
+      trackProductEvent("jobs_job_action_completed", {
+        action: "skip",
+        result: "error",
+        from_status: selectedJob.status,
+        to_status: "skipped",
+      });
       const message =
         error instanceof Error ? error.message : "Failed to skip job";
       toast.error(message);
@@ -260,9 +302,21 @@ export const JobDetailPanel: React.FC<JobDetailPanelProps> = ({
     if (!selectedJob) return;
     try {
       await api.updateJob(selectedJob.id, { status: "in_progress" });
+      trackProductEvent("jobs_job_action_completed", {
+        action: "move_in_progress",
+        result: "success",
+        from_status: selectedJob.status,
+        to_status: "in_progress",
+      });
       toast.success("Moved to in progress");
       await onJobUpdated();
     } catch (error) {
+      trackProductEvent("jobs_job_action_completed", {
+        action: "move_in_progress",
+        result: "error",
+        from_status: selectedJob.status,
+        to_status: "in_progress",
+      });
       const message =
         error instanceof Error
           ? error.message
@@ -354,8 +408,22 @@ export const JobDetailPanel: React.FC<JobDetailPanelProps> = ({
       <JobHeader
         job={selectedJob}
         onCheckSponsor={async () => {
-          await api.checkSponsor(selectedJob.id);
-          await onJobUpdated();
+          try {
+            await api.checkSponsor(selectedJob.id);
+            trackProductEvent("jobs_job_action_completed", {
+              action: "check_sponsor",
+              result: "success",
+              from_status: selectedJob.status,
+            });
+            await onJobUpdated();
+          } catch (error) {
+            trackProductEvent("jobs_job_action_completed", {
+              action: "check_sponsor",
+              result: "error",
+              from_status: selectedJob.status,
+            });
+            throw error;
+          }
         }}
       />
 

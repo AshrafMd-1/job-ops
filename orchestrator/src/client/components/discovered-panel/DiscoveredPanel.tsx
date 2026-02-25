@@ -5,6 +5,7 @@ import type { Job } from "@shared/types.js";
 import type React from "react";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
+import { trackProductEvent } from "@/lib/analytics";
 import { JobDetailsEditDrawer } from "../JobDetailsEditDrawer";
 import { DecideMode } from "./DecideMode";
 import { EmptyState } from "./EmptyState";
@@ -60,10 +61,22 @@ export const DiscoveredPanel: React.FC<DiscoveredPanelProps> = ({
     try {
       setIsSkipping(true);
       await skipJobMutation.mutateAsync(job.id);
+      trackProductEvent("jobs_job_action_completed", {
+        action: "skip",
+        result: "success",
+        from_status: job.status,
+        to_status: "skipped",
+      });
       toast.message("Job skipped");
       onJobMoved(job.id);
       await onJobUpdated();
     } catch (error) {
+      trackProductEvent("jobs_job_action_completed", {
+        action: "skip",
+        result: "error",
+        from_status: job.status,
+        to_status: "skipped",
+      });
       const message =
         error instanceof Error ? error.message : "Failed to skip job";
       toast.error(message);
@@ -77,6 +90,12 @@ export const DiscoveredPanel: React.FC<DiscoveredPanelProps> = ({
     try {
       setIsFinalizing(true);
       await api.processJob(job.id);
+      trackProductEvent("jobs_job_action_completed", {
+        action: "process_job",
+        result: "success",
+        from_status: job.status,
+        to_status: "ready",
+      });
 
       toast.success("Job moved to Ready", {
         description: "Your tailored PDF has been generated.",
@@ -85,6 +104,12 @@ export const DiscoveredPanel: React.FC<DiscoveredPanelProps> = ({
       onJobMoved(job.id);
       await onJobUpdated();
     } catch (error) {
+      trackProductEvent("jobs_job_action_completed", {
+        action: "process_job",
+        result: "error",
+        from_status: job.status,
+        to_status: "ready",
+      });
       const message =
         error instanceof Error ? error.message : "Failed to finalize job";
       toast.error(message);
@@ -115,8 +140,22 @@ export const DiscoveredPanel: React.FC<DiscoveredPanelProps> = ({
           isRescoring={isRescoring}
           onEditDetails={() => setIsEditDetailsOpen(true)}
           onCheckSponsor={async () => {
-            await api.checkSponsor(job.id);
-            await onJobUpdated();
+            try {
+              await api.checkSponsor(job.id);
+              trackProductEvent("jobs_job_action_completed", {
+                action: "check_sponsor",
+                result: "success",
+                from_status: job.status,
+              });
+              await onJobUpdated();
+            } catch (error) {
+              trackProductEvent("jobs_job_action_completed", {
+                action: "check_sponsor",
+                result: "error",
+                from_status: job.status,
+              });
+              throw error;
+            }
           }}
         />
       ) : (

@@ -50,6 +50,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { trackProductEvent } from "@/lib/analytics";
 import { formatDateTime } from "@/lib/utils";
 import * as api from "../api";
 import { EmptyState, PageHeader, PageMain } from "../components";
@@ -80,6 +81,7 @@ export const TrackingInboxPage: React.FC = () => {
   const [accountKey, setAccountKey] = useState("default");
   const [maxMessages, setMaxMessages] = useState("100");
   const [searchDays, setSearchDays] = useState("90");
+  const isDefaultAccountKey = accountKey.trim() === "default";
 
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isActionLoading, setIsActionLoading] = useState(false);
@@ -291,7 +293,15 @@ export const TrackingInboxPage: React.FC = () => {
       let syncToastId: string | number | null = null;
       try {
         if (action === "connect") {
+          trackProductEvent("tracking_inbox_connect_started", {
+            provider,
+            account_key_is_default: isDefaultAccountKey,
+          });
           if (provider !== "gmail") {
+            trackProductEvent("tracking_inbox_connect_completed", {
+              provider,
+              result: "error",
+            });
             toast.error(
               `${provider} connect is not implemented yet. Use Gmail for now.`,
             );
@@ -307,6 +317,10 @@ export const TrackingInboxPage: React.FC = () => {
             "popup,width=520,height=720",
           );
           if (!popup) {
+            trackProductEvent("tracking_inbox_connect_completed", {
+              provider,
+              result: "error",
+            });
             toast.error(
               "Browser blocked the Gmail OAuth popup. Allow popups and retry.",
             );
@@ -331,6 +345,10 @@ export const TrackingInboxPage: React.FC = () => {
             state: oauthStart.state,
             code: oauthResult.code,
           });
+          trackProductEvent("tracking_inbox_connect_completed", {
+            provider,
+            result: "success",
+          });
           toast.success("Provider connected");
         } else if (action === "sync") {
           const parsedMaxMessages = Number.parseInt(maxMessages, 10);
@@ -351,6 +369,11 @@ export const TrackingInboxPage: React.FC = () => {
           syncToastId = toast.loading(
             "Sync in progress. This may take up to a couple of minutes.",
           );
+          trackProductEvent("tracking_inbox_sync_started", {
+            provider,
+            max_messages: parsedMaxMessages,
+            search_days: parsedSearchDays,
+          });
 
           await api.postApplicationProviderSync({
             provider,
@@ -358,16 +381,40 @@ export const TrackingInboxPage: React.FC = () => {
             maxMessages: parsedMaxMessages,
             searchDays: parsedSearchDays,
           });
+          trackProductEvent("tracking_inbox_sync_completed", {
+            provider,
+            result: "success",
+          });
           toast.success("Sync completed", {
             ...(syncToastId ? { id: syncToastId } : {}),
           });
         } else {
           await api.postApplicationProviderDisconnect({ provider, accountKey });
+          trackProductEvent("tracking_inbox_disconnect_confirmed", {
+            provider,
+          });
           toast.success("Provider disconnected");
         }
 
         await refresh();
       } catch (error) {
+        if (action === "connect") {
+          const message = error instanceof Error ? error.message : "";
+          trackProductEvent("tracking_inbox_connect_completed", {
+            provider,
+            result: message.includes("Timed out")
+              ? "timeout"
+              : message.includes("window was closed")
+                ? "cancelled"
+                : "error",
+          });
+        }
+        if (action === "sync") {
+          trackProductEvent("tracking_inbox_sync_completed", {
+            provider,
+            result: "error",
+          });
+        }
         const message =
           error instanceof Error
             ? error.message
@@ -384,6 +431,7 @@ export const TrackingInboxPage: React.FC = () => {
     },
     [
       accountKey,
+      isDefaultAccountKey,
       maxMessages,
       provider,
       refresh,
@@ -393,7 +441,11 @@ export const TrackingInboxPage: React.FC = () => {
   );
 
   const handleDecision = useCallback(
-    async (item: PostApplicationInboxItem, decision: "approve" | "deny") => {
+    async (
+      item: PostApplicationInboxItem,
+      decision: "approve" | "deny",
+      context: "main_inbox" | "run_modal",
+    ) => {
       const selectedJobId =
         appliedJobByMessageId[item.message.id] || item.message.matchedJobId;
 
@@ -412,6 +464,13 @@ export const TrackingInboxPage: React.FC = () => {
             jobId: selectedJobId ?? undefined,
             stageTarget: item.message.stageTarget ?? undefined,
           });
+          trackProductEvent("tracking_inbox_review_action_completed", {
+            action: "approve",
+            context,
+            item_count: 1,
+            provider,
+            result: "success",
+          });
           toast.success("Message linked");
         } else {
           await api.denyPostApplicationInboxItem({
@@ -419,11 +478,25 @@ export const TrackingInboxPage: React.FC = () => {
             provider,
             accountKey,
           });
+          trackProductEvent("tracking_inbox_review_action_completed", {
+            action: "deny",
+            context,
+            item_count: 1,
+            provider,
+            result: "success",
+          });
           toast.success("Message ignored");
         }
 
         await refresh();
       } catch (error) {
+        trackProductEvent("tracking_inbox_review_action_completed", {
+          action: decision,
+          context,
+          item_count: 1,
+          provider,
+          result: "error",
+        });
         const message =
           error instanceof Error
             ? error.message
@@ -452,6 +525,16 @@ export const TrackingInboxPage: React.FC = () => {
 
         const { succeeded, failed, skipped } = result;
         const actionLabel = action === "approve" ? "approved" : "ignored";
+        trackProductEvent("tracking_inbox_review_action_completed", {
+          action,
+          context: "main_inbox",
+          item_count: result.requested,
+          provider,
+          result:
+            failed === result.requested && result.requested > 0
+              ? "error"
+              : "success",
+        });
 
         if (failed === 0 && skipped === 0) {
           toast.success(`All ${succeeded} messages ${actionLabel}`);
@@ -467,6 +550,13 @@ export const TrackingInboxPage: React.FC = () => {
 
         await refresh();
       } catch (error) {
+        trackProductEvent("tracking_inbox_review_action_completed", {
+          action,
+          context: "main_inbox",
+          item_count: inbox.length,
+          provider,
+          result: "error",
+        });
         const message =
           error instanceof Error
             ? error.message
@@ -742,7 +832,7 @@ export const TrackingInboxPage: React.FC = () => {
                 appliedJobByMessageId={appliedJobByMessageId}
                 onAppliedJobChange={handleAppliedJobChange}
                 onDecision={(item, decision) =>
-                  void handleDecision(item, decision)
+                  void handleDecision(item, decision, "main_inbox")
                 }
                 isActionLoading={isActionLoading}
                 isAppliedJobsLoading={isAppliedJobsLoading}
@@ -829,7 +919,7 @@ export const TrackingInboxPage: React.FC = () => {
                 appliedJobByMessageId={appliedJobByMessageId}
                 onAppliedJobChange={handleAppliedJobChange}
                 onDecision={(item, decision) =>
-                  void handleDecision(item, decision)
+                  void handleDecision(item, decision, "run_modal")
                 }
                 isActionLoading={isActionLoading}
                 isAppliedJobsLoading={isAppliedJobsLoading}
