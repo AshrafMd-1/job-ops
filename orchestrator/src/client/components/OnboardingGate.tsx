@@ -17,6 +17,7 @@ import {
   LLM_PROVIDERS,
   normalizeLlmProvider,
 } from "@client/pages/settings/utils";
+import { getDefaultModelForProvider } from "@shared/settings-registry";
 import type { UpdateSettingsInput } from "@shared/settings-schema.js";
 import type { RxResumeMode, ValidationResult } from "@shared/types.js";
 import { Check } from "lucide-react";
@@ -423,6 +424,10 @@ export const OnboardingGate: React.FC = () => {
       const update: Partial<UpdateSettingsInput> = {
         llmProvider: normalizedProvider,
         llmBaseUrl: showBaseUrl ? baseUrlValue || null : null,
+        model: null,
+        modelScorer: null,
+        modelTailoring: null,
+        modelProjectSelection: null,
       };
 
       if (showApiKey && apiKeyValue) {
@@ -433,7 +438,13 @@ export const OnboardingGate: React.FC = () => {
       await api.updateSettings(update);
       await refreshSettings();
       setValue("llmApiKey", "");
-      toast.success("LLM provider connected");
+      const defaultModel = getDefaultModelForProvider(normalizedProvider);
+      toast.success("LLM provider connected", {
+        description:
+          normalizedProvider === "openai" || normalizedProvider === "gemini"
+            ? `Default for ${providerConfig.label}: ${defaultModel}.`
+            : "Select the model manually in Settings > Model.",
+      });
       return true;
     } catch (error) {
       const message =

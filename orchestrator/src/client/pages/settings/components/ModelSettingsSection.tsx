@@ -1,3 +1,4 @@
+import * as api from "@client/api";
 import { SettingsInput } from "@client/pages/settings/components/SettingsInput";
 import type { ModelValues } from "@client/pages/settings/types";
 import {
@@ -5,16 +6,19 @@ import {
   getLlmProviderConfig,
   LLM_PROVIDER_LABELS,
   LLM_PROVIDERS,
+  supportsLlmModelSuggestions,
 } from "@client/pages/settings/utils";
+import { getDefaultModelForProvider } from "@shared/settings-registry";
 import type { UpdateSettingsInput } from "@shared/settings-schema.js";
 import type React from "react";
-import { useEffect } from "react";
+import { useDeferredValue, useEffect, useRef, useState } from "react";
 import { Controller, useFormContext } from "react-hook-form";
 import {
   AccordionContent,
   AccordionItem,
   AccordionTrigger,
 } from "@/components/ui/accordion";
+import { SearchableDropdown } from "@/components/ui/searchable-dropdown";
 import {
   Select,
   SelectContent,
@@ -35,12 +39,12 @@ export const ModelSettingsSection: React.FC<ModelSettingsSectionProps> = ({
   isLoading,
   isSaving,
 }) => {
+  const [availableModels, setAvailableModels] = useState<string[]>([]);
+  const [isLoadingModels, setIsLoadingModels] = useState(false);
+  const [modelsError, setModelsError] = useState<string | null>(null);
   const {
     effective,
     default: defaultModel,
-    scorer,
-    tailoring,
-    projectSelection,
     llmProvider,
     llmBaseUrl,
     llmApiKeyHint,
@@ -54,10 +58,28 @@ export const ModelSettingsSection: React.FC<ModelSettingsSectionProps> = ({
   } = useFormContext<UpdateSettingsInput>();
 
   const selectedProvider = watch("llmProvider") || llmProvider || "openrouter";
+  const previousProviderRef = useRef(selectedProvider);
   const providerConfig = getLlmProviderConfig(selectedProvider);
   const { showApiKey, showBaseUrl } = providerConfig;
 
   const llmBaseUrlValue = watch("llmBaseUrl");
+  const llmApiKeyValue = watch("llmApiKey") ?? "";
+  const modelValue = watch("model") ?? "";
+  const modelScorerValue = watch("modelScorer") ?? "";
+  const modelTailoringValue = watch("modelTailoring") ?? "";
+  const modelProjectSelectionValue = watch("modelProjectSelection") ?? "";
+  const providerDefaultModel = getDefaultModelForProvider(
+    selectedProvider,
+    selectedProvider === llmProvider ? defaultModel : undefined,
+  );
+  const deferredProvider = useDeferredValue(selectedProvider);
+  const deferredBaseUrl = useDeferredValue(llmBaseUrlValue ?? "");
+  const deferredApiKey = useDeferredValue(llmApiKeyValue);
+  const supportsModelSuggestions =
+    supportsLlmModelSuggestions(selectedProvider);
+  const hasAvailableApiKey = showApiKey
+    ? Boolean(deferredApiKey.trim() || llmApiKeyHint)
+    : true;
 
   useEffect(() => {
     if (showBaseUrl) return;
@@ -66,12 +88,122 @@ export const ModelSettingsSection: React.FC<ModelSettingsSectionProps> = ({
     }
   }, [setValue, showBaseUrl, llmBaseUrlValue]);
 
+  useEffect(() => {
+    if (previousProviderRef.current === selectedProvider) {
+      return;
+    }
+
+    previousProviderRef.current = selectedProvider;
+    setValue("model", "", { shouldDirty: true });
+    setValue("modelScorer", "", { shouldDirty: true });
+    setValue("modelTailoring", "", { shouldDirty: true });
+    setValue("modelProjectSelection", "", { shouldDirty: true });
+  }, [selectedProvider, setValue]);
+
+  useEffect(() => {
+    if (!supportsModelSuggestions) {
+      setAvailableModels([]);
+      setModelsError(null);
+      setIsLoadingModels(false);
+      return;
+    }
+
+    if (!hasAvailableApiKey) {
+      setAvailableModels([]);
+      setModelsError(null);
+      setIsLoadingModels(false);
+      return;
+    }
+
+    let cancelled = false;
+    setIsLoadingModels(true);
+    setModelsError(null);
+
+    void api
+      .getLlmModels({
+        provider: deferredProvider,
+        baseUrl: showBaseUrl ? deferredBaseUrl.trim() || undefined : undefined,
+        apiKey: showApiKey ? deferredApiKey.trim() || undefined : undefined,
+      })
+      .then((models) => {
+        if (cancelled) return;
+        setAvailableModels(models);
+        setModelsError(null);
+      })
+      .catch((error) => {
+        if (cancelled) return;
+        setAvailableModels([]);
+        setModelsError(
+          error instanceof Error ? error.message : "Failed to load models.",
+        );
+      })
+      .finally(() => {
+        if (cancelled) return;
+        setIsLoadingModels(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    deferredApiKey,
+    deferredBaseUrl,
+    deferredProvider,
+    hasAvailableApiKey,
+    showApiKey,
+    showBaseUrl,
+    supportsModelSuggestions,
+  ]);
+
   const keyHint = formatSecretHint(llmApiKeyHint);
   const keyText = showApiKey ? keyHint || "Not set" : "Not required";
-  const effectiveDefaultModel = effective || defaultModel || "—";
-  const scoringModel = scorer || effectiveDefaultModel;
-  const tailoringModel = tailoring || effectiveDefaultModel;
-  const projectSelectionModel = projectSelection || effectiveDefaultModel;
+  const resolvedBaseUrl = llmBaseUrlValue?.trim() || llmBaseUrl || "-";
+  const selectedDefaultModel = modelValue.trim();
+  const previewDefaultModel =
+    selectedDefaultModel || effective || providerDefaultModel || "-";
+  const selectedScoringModel = modelScorerValue.trim();
+  const selectedTailoringModel = modelTailoringValue.trim();
+  const selectedProjectSelectionModel = modelProjectSelectionValue.trim();
+  const scoringModel = selectedScoringModel || previewDefaultModel;
+  const tailoringModel = selectedTailoringModel || previewDefaultModel;
+  const projectSelectionModel =
+    selectedProjectSelectionModel || previewDefaultModel;
+  const modelHelper = supportsModelSuggestions
+    ? !hasAvailableApiKey
+      ? `Add or save a ${providerConfig.label} API key to load available models.`
+      : isLoadingModels
+        ? "Loading available models..."
+        : modelsError
+          ? modelsError
+          : availableModels.length > 0
+            ? "Choose from the available text-generation models."
+            : "No text-generation models were returned."
+    : `Type the exact model name manually, or leave blank to use the ${providerConfig.label} default model.`;
+  const defaultModelOptions = buildModelOptions({
+    models: availableModels,
+    emptyLabel: `Use ${providerConfig.label} default`,
+    emptyValue: "",
+    fallbackValue: modelValue.trim(),
+  });
+  const scoringModelOptions = buildModelOptions({
+    models: availableModels,
+    emptyLabel: "Inherit default model",
+    emptyValue: "",
+    fallbackValue: modelScorerValue.trim(),
+  });
+  const tailoringModelOptions = buildModelOptions({
+    models: availableModels,
+    emptyLabel: "Inherit default model",
+    emptyValue: "",
+    fallbackValue: modelTailoringValue.trim(),
+  });
+  const projectSelectionModelOptions = buildModelOptions({
+    models: availableModels,
+    emptyLabel: "Inherit default model",
+    emptyValue: "",
+    fallbackValue: modelProjectSelectionValue.trim(),
+  });
+
   return (
     <AccordionItem value="model" className="border rounded-lg px-4">
       <AccordionTrigger className="hover:no-underline py-4">
@@ -128,7 +260,7 @@ export const ModelSettingsSection: React.FC<ModelSettingsSectionProps> = ({
                   disabled={isLoading || isSaving}
                   error={errors.llmBaseUrl?.message as string | undefined}
                   helper={providerConfig.baseUrlHelper}
-                  current={llmBaseUrl || "—"}
+                  current={resolvedBaseUrl}
                 />
               )}
               {showApiKey && (
@@ -147,15 +279,53 @@ export const ModelSettingsSection: React.FC<ModelSettingsSectionProps> = ({
 
           <Separator />
 
-          <SettingsInput
-            label="Default model"
-            inputProps={register("model")}
-            placeholder={defaultModel || "google/gemini-3-flash-preview"}
-            disabled={isLoading || isSaving}
-            error={errors.model?.message as string | undefined}
-            helper="Leave blank to use the default from server env (`MODEL`)."
-            current={effectiveDefaultModel}
-          />
+          {supportsModelSuggestions ? (
+            <div className="space-y-2">
+              <label htmlFor="model" className="text-sm font-medium">
+                Default model
+              </label>
+              <Controller
+                name="model"
+                control={control}
+                render={({ field }) => (
+                  <SearchableDropdown
+                    inputId="model"
+                    value={field.value ?? ""}
+                    options={defaultModelOptions}
+                    onValueChange={field.onChange}
+                    placeholder={providerDefaultModel || "Select a model"}
+                    searchPlaceholder="Search models..."
+                    emptyText="No models found."
+                    ariaLabel="Default model"
+                    disabled={isLoading || isSaving || isLoadingModels}
+                    triggerClassName="h-9 w-full justify-between rounded-md border border-input bg-transparent px-3 text-sm font-normal shadow-sm"
+                    contentClassName="w-[var(--radix-popover-trigger-width)] border-border bg-popover p-0"
+                    listClassName="max-h-64"
+                  />
+                )}
+              />
+              {errors.model?.message && (
+                <p className="text-xs text-destructive">
+                  {errors.model.message as string}
+                </p>
+              )}
+              <div className="text-xs text-muted-foreground">{modelHelper}</div>
+              <div className="text-xs text-muted-foreground">
+                Current:{" "}
+                <span className="font-mono">{previewDefaultModel}</span>
+              </div>
+            </div>
+          ) : (
+            <SettingsInput
+              label="Default model"
+              inputProps={register("model")}
+              placeholder={providerDefaultModel}
+              disabled={isLoading || isSaving}
+              error={errors.model?.message as string | undefined}
+              helper={modelHelper}
+              current={previewDefaultModel}
+            />
+          )}
 
           <Separator />
 
@@ -163,34 +333,161 @@ export const ModelSettingsSection: React.FC<ModelSettingsSectionProps> = ({
             <div className="text-sm font-medium">Task-Specific Overrides</div>
 
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-              <SettingsInput
-                label="Scoring Model"
-                inputProps={register("modelScorer")}
-                placeholder={effective || "inherit"}
-                disabled={isLoading || isSaving}
-                error={errors.modelScorer?.message as string | undefined}
-                current={scoringModel}
-              />
+              {supportsModelSuggestions ? (
+                <>
+                  <div className="space-y-2">
+                    <label
+                      htmlFor="modelScorer"
+                      className="text-sm font-medium"
+                    >
+                      Scoring Model
+                    </label>
+                    <Controller
+                      name="modelScorer"
+                      control={control}
+                      render={({ field }) => (
+                        <SearchableDropdown
+                          inputId="modelScorer"
+                          value={field.value ?? ""}
+                          options={scoringModelOptions}
+                          onValueChange={field.onChange}
+                          placeholder={
+                            previewDefaultModel || "Inherit default model"
+                          }
+                          searchPlaceholder="Search models..."
+                          emptyText="No models found."
+                          ariaLabel="Scoring Model"
+                          disabled={isLoading || isSaving || isLoadingModels}
+                          triggerClassName="h-9 w-full justify-between rounded-md border border-input bg-transparent px-3 text-sm font-normal shadow-sm"
+                          contentClassName="w-[var(--radix-popover-trigger-width)] border-border bg-popover p-0"
+                          listClassName="max-h-64"
+                        />
+                      )}
+                    />
+                    {errors.modelScorer?.message && (
+                      <p className="text-xs text-destructive">
+                        {errors.modelScorer.message as string}
+                      </p>
+                    )}
+                    <div className="text-xs text-muted-foreground">
+                      Current: <span className="font-mono">{scoringModel}</span>
+                    </div>
+                  </div>
 
-              <SettingsInput
-                label="Tailoring Model"
-                inputProps={register("modelTailoring")}
-                placeholder={effective || "inherit"}
-                disabled={isLoading || isSaving}
-                error={errors.modelTailoring?.message as string | undefined}
-                current={tailoringModel}
-              />
+                  <div className="space-y-2">
+                    <label
+                      htmlFor="modelTailoring"
+                      className="text-sm font-medium"
+                    >
+                      Tailoring Model
+                    </label>
+                    <Controller
+                      name="modelTailoring"
+                      control={control}
+                      render={({ field }) => (
+                        <SearchableDropdown
+                          inputId="modelTailoring"
+                          value={field.value ?? ""}
+                          options={tailoringModelOptions}
+                          onValueChange={field.onChange}
+                          placeholder={
+                            previewDefaultModel || "Inherit default model"
+                          }
+                          searchPlaceholder="Search models..."
+                          emptyText="No models found."
+                          ariaLabel="Tailoring Model"
+                          disabled={isLoading || isSaving || isLoadingModels}
+                          triggerClassName="h-9 w-full justify-between rounded-md border border-input bg-transparent px-3 text-sm font-normal shadow-sm"
+                          contentClassName="w-[var(--radix-popover-trigger-width)] border-border bg-popover p-0"
+                          listClassName="max-h-64"
+                        />
+                      )}
+                    />
+                    {errors.modelTailoring?.message && (
+                      <p className="text-xs text-destructive">
+                        {errors.modelTailoring.message as string}
+                      </p>
+                    )}
+                    <div className="text-xs text-muted-foreground">
+                      Current:{" "}
+                      <span className="font-mono">{tailoringModel}</span>
+                    </div>
+                  </div>
 
-              <SettingsInput
-                label="Project Selection Model"
-                inputProps={register("modelProjectSelection")}
-                placeholder={effective || "inherit"}
-                disabled={isLoading || isSaving}
-                error={
-                  errors.modelProjectSelection?.message as string | undefined
-                }
-                current={projectSelectionModel}
-              />
+                  <div className="space-y-2">
+                    <label
+                      htmlFor="modelProjectSelection"
+                      className="text-sm font-medium"
+                    >
+                      Project Selection Model
+                    </label>
+                    <Controller
+                      name="modelProjectSelection"
+                      control={control}
+                      render={({ field }) => (
+                        <SearchableDropdown
+                          inputId="modelProjectSelection"
+                          value={field.value ?? ""}
+                          options={projectSelectionModelOptions}
+                          onValueChange={field.onChange}
+                          placeholder={
+                            previewDefaultModel || "Inherit default model"
+                          }
+                          searchPlaceholder="Search models..."
+                          emptyText="No models found."
+                          ariaLabel="Project Selection Model"
+                          disabled={isLoading || isSaving || isLoadingModels}
+                          triggerClassName="h-9 w-full justify-between rounded-md border border-input bg-transparent px-3 text-sm font-normal shadow-sm"
+                          contentClassName="w-[var(--radix-popover-trigger-width)] border-border bg-popover p-0"
+                          listClassName="max-h-64"
+                        />
+                      )}
+                    />
+                    {errors.modelProjectSelection?.message && (
+                      <p className="text-xs text-destructive">
+                        {errors.modelProjectSelection.message as string}
+                      </p>
+                    )}
+                    <div className="text-xs text-muted-foreground">
+                      Current:{" "}
+                      <span className="font-mono">{projectSelectionModel}</span>
+                    </div>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <SettingsInput
+                    label="Scoring Model"
+                    inputProps={register("modelScorer")}
+                    placeholder={previewDefaultModel || "inherit"}
+                    disabled={isLoading || isSaving}
+                    error={errors.modelScorer?.message as string | undefined}
+                    current={scoringModel}
+                  />
+
+                  <SettingsInput
+                    label="Tailoring Model"
+                    inputProps={register("modelTailoring")}
+                    placeholder={previewDefaultModel || "inherit"}
+                    disabled={isLoading || isSaving}
+                    error={errors.modelTailoring?.message as string | undefined}
+                    current={tailoringModel}
+                  />
+
+                  <SettingsInput
+                    label="Project Selection Model"
+                    inputProps={register("modelProjectSelection")}
+                    placeholder={previewDefaultModel || "inherit"}
+                    disabled={isLoading || isSaving}
+                    error={
+                      errors.modelProjectSelection?.message as
+                        | string
+                        | undefined
+                    }
+                    current={projectSelectionModel}
+                  />
+                </>
+              )}
             </div>
           </div>
 
@@ -200,36 +497,32 @@ export const ModelSettingsSection: React.FC<ModelSettingsSectionProps> = ({
             <div className="text-xs text-muted-foreground">Resolved config</div>
             <div className="grid gap-x-4 gap-y-2 text-xs sm:grid-cols-[160px_1fr]">
               <div className="text-muted-foreground">Provider</div>
-              <div className="font-mono">{selectedProvider || "—"}</div>
+              <div className="font-mono">{selectedProvider || "-"}</div>
 
               <div className="text-muted-foreground">Base URL</div>
-              <div className="font-mono">{llmBaseUrl || "—"}</div>
+              <div className="font-mono">{resolvedBaseUrl}</div>
 
               <div className="text-muted-foreground">API key</div>
               <div className="font-mono">{keyText}</div>
 
               <div className="text-muted-foreground">Default model</div>
-              <div className="font-mono">{effectiveDefaultModel}</div>
+              <div className="font-mono">{previewDefaultModel}</div>
 
               <div className="text-muted-foreground">Scoring model</div>
               <div className="font-mono">
-                {scoringModel === effectiveDefaultModel
-                  ? "inherits"
-                  : scoringModel}
+                {selectedScoringModel ? scoringModel : "inherits"}
               </div>
 
               <div className="text-muted-foreground">Tailoring model</div>
               <div className="font-mono">
-                {tailoringModel === effectiveDefaultModel
-                  ? "inherits"
-                  : tailoringModel}
+                {selectedTailoringModel ? tailoringModel : "inherits"}
               </div>
 
               <div className="text-muted-foreground">Project selection</div>
               <div className="font-mono">
-                {projectSelectionModel === effectiveDefaultModel
-                  ? "inherits"
-                  : projectSelectionModel}
+                {selectedProjectSelectionModel
+                  ? projectSelectionModel
+                  : "inherits"}
               </div>
             </div>
           </div>
@@ -238,3 +531,37 @@ export const ModelSettingsSection: React.FC<ModelSettingsSectionProps> = ({
     </AccordionItem>
   );
 };
+
+function buildModelOptions(input: {
+  models: string[];
+  emptyLabel: string;
+  emptyValue: string;
+  fallbackValue?: string;
+}) {
+  const options = [
+    {
+      value: input.emptyValue,
+      label: input.emptyLabel,
+      searchText: input.emptyLabel,
+    },
+    ...input.models.map((model) => ({
+      value: model,
+      label: model,
+      searchText: model,
+    })),
+  ];
+
+  const fallbackValue = input.fallbackValue?.trim();
+  if (
+    fallbackValue &&
+    !options.some((option) => option.value === fallbackValue)
+  ) {
+    options.unshift({
+      value: fallbackValue,
+      label: fallbackValue,
+      searchText: `${fallbackValue} custom`,
+    });
+  }
+
+  return options;
+}

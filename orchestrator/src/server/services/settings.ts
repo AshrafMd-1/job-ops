@@ -1,6 +1,9 @@
 import { logger } from "@infra/logger";
 import * as settingsRepo from "@server/repositories/settings";
-import { settingsRegistry } from "@shared/settings-registry";
+import {
+  getDefaultModelForProvider,
+  settingsRegistry,
+} from "@shared/settings-registry";
 import type { AppSettings } from "@shared/types";
 import { getEnvSettingsData } from "./envSettings";
 import { getProfile } from "./profile";
@@ -28,11 +31,58 @@ function resolveDefaultLlmBaseUrl(provider: string): string {
   return "https://openrouter.ai";
 }
 
+function normalizeModelForProviderCompatibility(
+  provider: string | null | undefined,
+  model: string | null | undefined,
+): string | null {
+  const trimmedModel = model?.trim();
+  if (!trimmedModel) return null;
+
+  const normalizedProvider = provider?.trim().toLowerCase().replace(/-/g, "_");
+  const normalizedModel = trimmedModel.toLowerCase();
+
+  if (normalizedProvider === "openai") {
+    if (
+      normalizedModel.startsWith("google/") ||
+      normalizedModel.startsWith("models/") ||
+      normalizedModel.startsWith("gemini")
+    ) {
+      return null;
+    }
+  }
+
+  if (normalizedProvider === "gemini") {
+    const isGeminiModel =
+      normalizedModel.startsWith("google/") ||
+      normalizedModel.startsWith("models/") ||
+      normalizedModel.startsWith("gemini");
+    if (!isGeminiModel) {
+      return null;
+    }
+  }
+
+  return trimmedModel;
+}
+
 /**
  * Get the effective app settings, combining environment variables and database overrides.
  */
 export async function getEffectiveSettings(): Promise<AppSettings> {
-  const overrides = await settingsRepo.getAllSettings();
+  const getAllSettings =
+    "getAllSettings" in settingsRepo ? settingsRepo.getAllSettings : null;
+  const overrides =
+    (typeof getAllSettings === "function" ? await getAllSettings() : null) ??
+    {};
+  const providerOverride = settingsRegistry.llmProvider.parse(
+    overrides.llmProvider,
+  );
+  const effectiveLlmProvider =
+    providerOverride ?? settingsRegistry.llmProvider.default();
+  const resolvedModelDefault =
+    normalizeModelForProviderCompatibility(
+      effectiveLlmProvider,
+      getDefaultModelForProvider(effectiveLlmProvider, process.env.MODEL),
+    ) ?? getDefaultModelForProvider(effectiveLlmProvider);
 
   const rxresumeBaseResumeId = resolveRxResumeBaseResumeIdForMode({
     rxresumeMode: overrides.rxresumeMode ?? process.env.RXRESUME_MODE ?? null,
@@ -81,8 +131,11 @@ export async function getEffectiveSettings(): Promise<AppSettings> {
 
   const rawModel = overrides.model;
   const modelDef = settingsRegistry.model;
-  const overrideModel = modelDef.parse(rawModel);
-  const modelValue = overrideModel ?? modelDef.default();
+  const overrideModel = normalizeModelForProviderCompatibility(
+    effectiveLlmProvider,
+    modelDef.parse(rawModel),
+  );
+  const modelValue = overrideModel ?? resolvedModelDefault;
 
   for (const [key, def] of Object.entries(settingsRegistry)) {
     if (def.kind === "typed") {
@@ -91,15 +144,17 @@ export async function getEffectiveSettings(): Promise<AppSettings> {
         rawOverride = overrides.jobspyLocation; // legacy fallback
       }
 
-      const override = def.parse(rawOverride);
+      let override = def.parse(rawOverride);
       let defaultValue = def.default();
 
+      if (key === "model") {
+        defaultValue = resolvedModelDefault;
+        override = overrideModel;
+      }
+
       if (key === "llmBaseUrl") {
-        const providerOverride = settingsRegistry.llmProvider.parse(
-          overrides.llmProvider,
-        );
         const provider =
-          providerOverride ?? settingsRegistry.llmProvider.default();
+          effectiveLlmProvider ?? settingsRegistry.llmProvider.default();
         defaultValue =
           process.env.LLM_BASE_URL || resolveDefaultLlmBaseUrl(provider);
       }
@@ -141,7 +196,11 @@ export async function getEffectiveSettings(): Promise<AppSettings> {
         override,
       };
     } else if (def.kind === "model") {
-      const override = overrides[key as settingsRepo.SettingKey] ?? null;
+      const override =
+        normalizeModelForProviderCompatibility(
+          effectiveLlmProvider,
+          overrides[key as settingsRepo.SettingKey] ?? null,
+        ) ?? null;
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       // biome-ignore lint/suspicious/noExplicitAny: dynamic assignment for settings building
       (result as any)[key] = { value: override || modelValue, override };

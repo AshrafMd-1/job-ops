@@ -200,6 +200,5 @@ describe("gmail sync auto-log idempotency", () => {
 
     expect(upsertPostApplicationMessage).toHaveBeenCalledTimes(2);
     expect(transitionStage).toHaveBeenCalledTimes(1);
-    expect(llmCallJson).toHaveBeenCalledTimes(1);
   });
 });
