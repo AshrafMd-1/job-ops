@@ -39,11 +39,10 @@ FROM build-base AS python-deps
 
 # Install Python dependencies with pip cache.
 RUN --mount=type=cache,target=/root/.cache/pip \
-    pip3 install --no-cache-dir --break-system-packages playwright python-jobspy
+    pip3 install --break-system-packages playwright python-jobspy
 
 # Install Firefox for Python Playwright.
-RUN --mount=type=cache,target=/root/.cache/pip \
-    python3 -m playwright install firefox
+RUN python3 -m playwright install firefox
 
 FROM build-base AS node-deps
 
