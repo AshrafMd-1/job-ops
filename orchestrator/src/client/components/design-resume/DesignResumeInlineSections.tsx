@@ -13,6 +13,56 @@ const insetPanelClassName =
 const subtlePanelClassName =
   "rounded-lg border border-border/60 bg-muted/20 px-4 py-3";
 
+function isHexColor(value: string): boolean {
+  return /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(value.trim());
+}
+
+function normalizeColorValue(value: string): string {
+  const trimmed = value.trim();
+  if (/^#[0-9a-f]{3}$/i.test(trimmed)) {
+    const [, r, g, b] = trimmed;
+    return `#${r}${r}${g}${g}${b}${b}`.toLowerCase();
+  }
+  if (/^#[0-9a-f]{6}$/i.test(trimmed)) {
+    return trimmed.toLowerCase();
+  }
+  return "#000000";
+}
+
+type ColorFieldProps = {
+  id: string;
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+};
+
+function ColorField({ id, label, value, onChange }: ColorFieldProps) {
+  const pickerValue = normalizeColorValue(value);
+
+  return (
+    <div className="grid gap-2">
+      <label className={labelClassName} htmlFor={id}>
+        {label}
+      </label>
+      <div className="flex items-center gap-2">
+        <input
+          id={id}
+          type="color"
+          value={pickerValue}
+          onChange={(event) => onChange(event.currentTarget.value)}
+          className="h-10 w-12 cursor-pointer rounded-md border border-border/60 bg-background/60 p-1"
+          aria-label={label}
+        />
+        <Input
+          value={value}
+          onChange={(event) => onChange(event.currentTarget.value)}
+          className={fieldClassName}
+        />
+      </div>
+    </div>
+  );
+}
+
 type PictureSectionProps = {
   picture: Record<string, unknown>;
   pictureUploading: boolean;
@@ -132,19 +182,13 @@ export function PictureSection({
           ["borderColor", "Border color"],
           ["shadowColor", "Shadow color"],
         ].map(([key, label]) => (
-          <div key={key} className="grid gap-2">
-            <label className={labelClassName} htmlFor={fieldId("picture", key)}>
-              {label}
-            </label>
-            <Input
-              id={fieldId("picture", key)}
-              value={toText(picture[key])}
-              onChange={(event) =>
-                onUpdatePicture(key, event.currentTarget.value)
-              }
-              className={fieldClassName}
-            />
-          </div>
+          <ColorField
+            key={key}
+            id={fieldId("picture", key)}
+            label={label}
+            value={toText(picture[key])}
+            onChange={(nextValue) => onUpdatePicture(key, nextValue)}
+          />
         ))}
       </div>
     </div>
