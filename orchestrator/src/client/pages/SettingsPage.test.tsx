@@ -619,6 +619,36 @@ describe("SettingsPage", () => {
     );
   });
 
+  it("saves auto-skip score threshold from scoring settings", async () => {
+    vi.mocked(api.getSettings).mockResolvedValue(baseSettings);
+    vi.mocked(api.updateSettings).mockResolvedValue({
+      ...baseSettings,
+      autoSkipScoreThreshold: {
+        value: 42,
+        default: null,
+        override: 42,
+      },
+    });
+
+    renderPage();
+
+    await openScoringSection();
+
+    const input = screen.getByLabelText(/auto-skip score threshold/i);
+    fireEvent.change(input, { target: { value: "42" } });
+
+    const saveButton = getSaveButton();
+    await waitFor(() => expect(saveButton).toBeEnabled());
+    fireEvent.click(saveButton);
+
+    await waitFor(() => expect(api.updateSettings).toHaveBeenCalled());
+    expect(api.updateSettings).toHaveBeenCalledWith(
+      expect.objectContaining({
+        autoSkipScoreThreshold: 42,
+      }),
+    );
+  });
+
   it("sends null for both numeric limit fields on reset-to-default", async () => {
     vi.mocked(api.getSettings).mockResolvedValue(
       createAppSettings({

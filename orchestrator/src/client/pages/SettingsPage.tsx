@@ -1188,6 +1188,10 @@ export const SettingsPage: React.FC = () => {
           data.missingSalaryPenalty,
           scoring.missingSalaryPenalty.default,
         ),
+        autoSkipScoreThreshold: nullIfSame(
+          data.autoSkipScoreThreshold,
+          scoring.autoSkipScoreThreshold.default,
+        ),
         blockedCompanyKeywords: (() => {
           const normalized = normalizeStringArray(data.blockedCompanyKeywords);
           const normalizedDefault = normalizeStringArray(
