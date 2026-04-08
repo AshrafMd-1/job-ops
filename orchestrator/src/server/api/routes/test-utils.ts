@@ -82,7 +82,6 @@ vi.mock("@server/services/visa-sponsors/index", () => ({
 }));
 
 const originalEnv = { ...process.env };
-const originalFetch = global.fetch;
 const isolatedEnvKeys = [
   "RXRESUME_API_KEY",
   "RXRESUME_EMAIL",
@@ -101,6 +100,11 @@ const isolatedEnvKeys = [
   "ADZUNA_APP_KEY",
 ] as const;
 
+async function restoreNativeFetch(): Promise<void> {
+  const { fetch: undiciFetch } = await import("undici");
+  global.fetch = undiciFetch as typeof global.fetch;
+}
+
 export async function startServer(options?: {
   env?: Record<string, string | undefined>;
 }): Promise<{
@@ -110,7 +114,7 @@ export async function startServer(options?: {
   tempDir: string;
 }> {
   vi.unstubAllGlobals();
-  global.fetch = originalFetch;
+  await restoreNativeFetch();
   vi.resetModules();
   const tempDir = await mkdtemp(join(tmpdir(), "job-ops-api-test-"));
   const envOverrides = options?.env ?? {};
@@ -172,6 +176,6 @@ export async function stopServer(args: {
   }
   process.env = { ...originalEnv };
   vi.unstubAllGlobals();
-  global.fetch = originalFetch;
+  await restoreNativeFetch();
   vi.clearAllMocks();
 }
