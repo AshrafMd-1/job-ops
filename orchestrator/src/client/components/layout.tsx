@@ -72,8 +72,8 @@ export const PageHeader: React.FC<PageHeaderProps> = ({
 
   return (
     <header className="sticky top-0 z-40 border-b bg-background/80 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-      <div className="container mx-auto flex items-center justify-between gap-4 px-4 py-4">
-        <div className="flex items-center gap-3">
+      <div className="container mx-auto flex flex-col gap-3 px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+        <div className="flex min-w-0 items-center gap-3">
           <Sheet open={navOpen} onOpenChange={setNavOpen}>
             <SheetTrigger asChild>
               <Button variant="ghost" size="icon">
@@ -160,7 +160,9 @@ export const PageHeader: React.FC<PageHeaderProps> = ({
           {statusIndicator}
         </div>
 
-        <div className="flex items-center gap-2">{actions}</div>
+        <div className="flex w-full min-w-0 flex-wrap items-center gap-2 sm:w-auto sm:flex-nowrap sm:justify-end">
+          {actions}
+        </div>
       </div>
     </header>
   );

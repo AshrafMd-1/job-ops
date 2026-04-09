@@ -11,11 +11,24 @@ import type {
   PdfRenderer,
 } from "@shared/types";
 import { useQueryClient } from "@tanstack/react-query";
-import { Download, FileDown, Import, PanelLeft, PenSquare } from "lucide-react";
+import {
+  Download,
+  FileDown,
+  Import,
+  MoreHorizontal,
+  PanelLeft,
+  PenSquare,
+} from "lucide-react";
 import type React from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import {
   Sheet,
   SheetContent,
@@ -69,6 +82,8 @@ export const DesignResumePage: React.FC = () => {
     pdfRenderer === "rxresume" && isRxResumeV4Mode
       ? "Reactive Resume export preview needs a v5 Reactive Resume connection. Switch Reactive Resume to v5 in Settings, or switch the template above to Local LaTeX."
       : null;
+  const canDownloadPdf =
+    status?.exists && !pdfDownloading && !previewBlockedMessage;
 
   useEffect(() => {
     if (!document) return;
@@ -441,7 +456,7 @@ export const DesignResumePage: React.FC = () => {
         title="Design Resume"
         subtitle="Edit your resume details"
         actions={
-          <div className="flex items-center gap-2">
+          <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:flex-nowrap sm:justify-end">
             <Sheet open={mobileRailOpen} onOpenChange={setMobileRailOpen}>
               <SheetTrigger asChild>
                 <Button type="button" variant="outline" className="lg:hidden">
@@ -460,39 +475,74 @@ export const DesignResumePage: React.FC = () => {
               </SheetContent>
             </Sheet>
 
-            <Button
-              type="button"
-              variant="outline"
-              onClick={handleImport}
-              disabled={Boolean(importBlockedMessage)}
-            >
-              <Import className="mr-2 h-4 w-4" />
-              {status?.exists ? "Re-import" : "Import"}
-            </Button>
+            <div className="hidden items-center gap-2 sm:flex">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={handleImport}
+                disabled={Boolean(importBlockedMessage)}
+              >
+                <Import className="mr-2 h-4 w-4" />
+                {status?.exists ? "Re-import" : "Import"}
+              </Button>
 
-            <Button
-              type="button"
-              variant="outline"
-              onClick={handleDownloadPdf}
-              disabled={
-                !status?.exists ||
-                pdfDownloading ||
-                Boolean(previewBlockedMessage)
-              }
-            >
-              <FileDown className="mr-2 h-4 w-4" />
-              {pdfDownloading ? "Preparing PDF" : "Download PDF"}
-            </Button>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={handleDownloadPdf}
+                disabled={!canDownloadPdf}
+              >
+                <FileDown className="mr-2 h-4 w-4" />
+                {pdfDownloading ? "Preparing PDF" : "Download PDF"}
+              </Button>
 
-            <Button
-              type="button"
-              variant="outline"
-              onClick={handleExport}
-              disabled={!status?.exists}
-            >
-              <Download className="mr-2 h-4 w-4" />
-              Export
-            </Button>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={handleExport}
+                disabled={!status?.exists}
+              >
+                <Download className="mr-2 h-4 w-4" />
+                Export
+              </Button>
+            </div>
+
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon"
+                  className="ml-auto sm:hidden"
+                  aria-label="Open resume actions"
+                >
+                  <MoreHorizontal className="h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-48">
+                <DropdownMenuItem
+                  onSelect={() => handleImport()}
+                  disabled={Boolean(importBlockedMessage)}
+                >
+                  <Import className="mr-2 h-4 w-4" />
+                  {status?.exists ? "Re-import" : "Import"}
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onSelect={() => handleDownloadPdf()}
+                  disabled={!canDownloadPdf}
+                >
+                  <FileDown className="mr-2 h-4 w-4" />
+                  {pdfDownloading ? "Preparing PDF" : "Download PDF"}
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onSelect={() => handleExport()}
+                  disabled={!status?.exists}
+                >
+                  <Download className="mr-2 h-4 w-4" />
+                  Export JSON
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         }
       />
