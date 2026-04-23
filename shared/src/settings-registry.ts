@@ -68,7 +68,7 @@ export function getDefaultModelForProvider(
     return DEFAULT_GEMINI_MODEL;
   }
 
-  if (normalizedProvider === "codex") {
+  if (normalizedProvider === "codex" || normalizedProvider === "gemini_cli") {
     return DEFAULT_CODEX_MODEL;
   }
   return DEFAULT_GEMINI_MODEL;
@@ -185,6 +185,7 @@ export const settingsRegistry = {
           "openai_compatible",
           "gemini",
           "codex",
+          "gemini_cli",
         ])
         .nullable(),
     ),
