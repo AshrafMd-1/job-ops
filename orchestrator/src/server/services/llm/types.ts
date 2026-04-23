@@ -5,7 +5,8 @@ export type LlmProvider =
   | "openai"
   | "openai_compatible"
   | "gemini"
-  | "codex";
+  | "codex"
+  | "gemini_cli";
 
 export type ResponseMode = "json_schema" | "json_object" | "text" | "none";
 

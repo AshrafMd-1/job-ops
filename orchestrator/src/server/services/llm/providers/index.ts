@@ -1,6 +1,7 @@
 import type { LlmProvider, ProviderStrategy } from "../types";
 import { codexStrategy } from "./codex";
 import { geminiStrategy } from "./gemini";
+import { geminiCliStrategy } from "./gemini-cli";
 import { lmStudioStrategy } from "./lmstudio";
 import { ollamaStrategy } from "./ollama";
 import { openAiStrategy } from "./openai";
@@ -15,4 +16,5 @@ export const strategies: Record<LlmProvider, ProviderStrategy> = {
   openai_compatible: openAiCompatibleStrategy,
   gemini: geminiStrategy,
   codex: codexStrategy,
+  gemini_cli: geminiCliStrategy,
 };

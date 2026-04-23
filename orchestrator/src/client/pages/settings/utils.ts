@@ -27,6 +27,7 @@ export const LLM_PROVIDERS = [
   "openai_compatible",
   "gemini",
   "codex",
+  "gemini_cli",
 ] as const;
 
 export type LlmProviderId = (typeof LLM_PROVIDERS)[number];
@@ -44,6 +45,7 @@ export const LLM_PROVIDER_LABELS: Record<LlmProviderId, string> = {
   openai_compatible: "OpenAI-compatible",
   gemini: "Gemini",
   codex: "Codex",
+  gemini_cli: "Gemini CLI",
 };
 
 const PROVIDERS_WITH_API_KEY = new Set<LlmProviderId>([
@@ -70,6 +72,8 @@ const PROVIDER_HINTS: Record<LlmProviderId, string> = {
   gemini: "Gemini uses the native AI Studio API and requires a key.",
   codex:
     "Codex runs through a local app-server process and uses your Codex login session.",
+  gemini_cli:
+    "Gemini CLI runs locally via the `gemini` command. Authenticate with `gemini auth login`.",
 };
 
 const PROVIDER_KEY_HELPERS: Record<
@@ -94,6 +98,7 @@ const PROVIDER_KEY_HELPERS: Record<
     href: "https://aistudio.google.com/app/apikey",
   },
   codex: { text: "No API key required when Codex is authenticated locally" },
+  gemini_cli: { text: "No API key required — uses your local Gemini CLI session" },
 };
 
 const BASE_URL_PROVIDERS = ["lmstudio", "ollama", "openai_compatible"] as const;
@@ -111,6 +116,7 @@ export function normalizeLlmProvider(
   const normalized = value?.trim().toLowerCase();
   if (!normalized) return "openrouter";
   if (normalized === "openai-compatible") return "openai_compatible";
+  if (normalized === "gemini-cli") return "gemini_cli";
   return (LLM_PROVIDERS as readonly string[]).includes(normalized)
     ? (normalized as LlmProviderId)
     : "openrouter";
