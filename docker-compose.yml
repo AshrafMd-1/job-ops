@@ -18,6 +18,8 @@ services:
       - ./data:/app/data
       # Persist Codex login/session data for app-server provider
       - codex-home:/app/codex-home
+      # Persist Gemini CLI auth/session data
+      - gemini-cli-home:/app/gemini-cli-home
     environment:
       # Server config
       - NODE_ENV=production
@@ -27,6 +29,8 @@ services:
       - PYTHON_PATH=/usr/bin/python3
       # Codex runtime home (stores auth and config)
       - CODEX_HOME=/app/codex-home
+      # Gemini CLI home (stores auth and config)
+      - GEMINI_HOME=/app/gemini-cli-home
 
     env_file:
       - path: ./.env
@@ -83,3 +87,4 @@ secrets:
 volumes:
   data:
   codex-home:
+  gemini-cli-home:

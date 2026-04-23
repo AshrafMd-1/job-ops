@@ -14,6 +14,7 @@ ENV CODEX_HOME=/app/codex-home
 ENV PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
 ENV PATH=/root/.local/bin:${PATH}
 ARG CODEX_CLI_VERSION=0.120.0
+ARG GEMINI_CLI_VERSION=latest
 
 # Install runtime dependencies shared by build and production stages.
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -27,6 +28,15 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 # Install Codex CLI for local app-server based inference.
 RUN npm install -g @openai/codex@${CODEX_CLI_VERSION}
+
+# Install Gemini CLI for local gemini-cli based inference.
+RUN if [ "${GEMINI_CLI_VERSION}" = "latest" ]; then \
+        npm install -g @google/gemini-cli; \
+    else \
+        npm install -g @google/gemini-cli@${GEMINI_CLI_VERSION}; \
+    fi
+
+ENV GEMINI_HOME=/app/gemini-cli-home
 
 WORKDIR /app
 
@@ -178,7 +188,7 @@ COPY extractors/ukvisajobs ./extractors/ukvisajobs
 COPY extractors/seek ./extractors/seek
 
 # Create runtime directories.
-RUN mkdir -p /app/data/pdfs /app/codex-home
+RUN mkdir -p /app/data/pdfs /app/codex-home /app/gemini-cli-home
 
 EXPOSE 3001
 
