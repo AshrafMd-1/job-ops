@@ -20,7 +20,12 @@ export const ITEM_DEFINITIONS: ItemDefinition[] = [
     primaryField: "network",
     secondaryField: "username",
     fields: [
-      { key: "icon", label: "Icon", type: "text", placeholder: "github" },
+      {
+        key: "icon",
+        label: "Icon",
+        type: "text",
+        placeholder: "e.g. tabler:brand-linkedin (Iconify icon name)",
+      },
       { key: "network", label: "Network", type: "text" },
       { key: "username", label: "Username", type: "text" },
       {
@@ -155,8 +160,19 @@ export const ITEM_DEFINITIONS: ItemDefinition[] = [
     primaryField: "name",
     secondaryField: "proficiency",
     fields: [
-      { key: "icon", label: "Icon", type: "text" },
-      { key: "name", label: "Name", type: "text" },
+      {
+        key: "name",
+        label: "Name",
+        type: "text",
+        required: true,
+        placeholder: "e.g. Python, or Programming Languages",
+      },
+      {
+        key: "icon",
+        label: "Icon",
+        type: "text",
+        placeholder: "e.g. tabler:brand-python (Iconify icon name)",
+      },
       { key: "proficiency", label: "Proficiency", type: "text" },
       { key: "level", label: "Level", type: "number", min: 0, step: 1 },
       { key: "keywords", label: "Keywords", type: "tags" },
@@ -199,7 +215,12 @@ export const ITEM_DEFINITIONS: ItemDefinition[] = [
     primaryField: "name",
     secondaryField: "icon",
     fields: [
-      { key: "icon", label: "Icon", type: "text" },
+      {
+        key: "icon",
+        label: "Icon",
+        type: "text",
+        placeholder: "e.g. tabler:brand-python (Iconify icon name)",
+      },
       { key: "name", label: "Name", type: "text" },
       { key: "keywords", label: "Keywords", type: "tags" },
     ],
